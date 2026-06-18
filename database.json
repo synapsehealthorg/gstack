@@ -1,0 +1,744 @@
+{
+  "users": {
+    "phantom_sports": {
+      "id": "phantom_sports",
+      "name": "Phantom Sports (Miami)",
+      "role": "buyer"
+    },
+    "pak_apparel": {
+      "id": "pak_apparel",
+      "name": "Pakistan Apparel Ltd",
+      "role": "manufacturer",
+      "is_premium": true,
+      "order_count": 15,
+      "bio": "Sialkot's leading exporter of premium athletic apparel, specializing in dye-sublimation, flatlock stitching, and performance wear.",
+      "specialties": [
+        "Sportswear",
+        "Performance Wear",
+        "Dye Sublimation"
+      ],
+      "moq": 50,
+      "established": 2011,
+      "portfolio_samples": [
+        "Sublimated Soccer Kit",
+        "Premium Compression Tight",
+        "Laser-cut Running Vest"
+      ]
+    },
+    "sialkot_stitch": {
+      "id": "sialkot_stitch",
+      "name": "Sialkot Stitch Group",
+      "role": "manufacturer",
+      "is_premium": false,
+      "order_count": 2,
+      "bio": "Quality fitness wear and hoodies with standard embroidery and screen printing setups.",
+      "specialties": [
+        "Fitness Wear",
+        "Hoodies",
+        "Screen Printing"
+      ],
+      "moq": 100,
+      "established": 2018,
+      "portfolio_samples": [
+        "Embroidered Gym Hoodie",
+        "Fleece Joggers"
+      ]
+    },
+    "himalaya_sports": {
+      "id": "himalaya_sports",
+      "name": "Himalaya Sportswear",
+      "role": "manufacturer",
+      "is_premium": false,
+      "order_count": 0,
+      "bio": "Manufacturer of premium outerwear, custom jackets, and weather-proof sportswear.",
+      "specialties": [
+        "Outerwear",
+        "Jackets",
+        "Weatherproof Wear"
+      ],
+      "moq": 250,
+      "established": 2022,
+      "portfolio_samples": [
+        "Softshell Team Jacket",
+        "Windbreaker Shell"
+      ]
+    },
+    "admin_user": {
+      "id": "admin_user",
+      "name": "proov.io QC Officer",
+      "role": "admin"
+    }
+  },
+  "demands": {
+    "demand_1": {
+      "id": "demand_1",
+      "buyer_id": "phantom_sports",
+      "buyer_name": "Phantom Sports (Miami)",
+      "title": "150x Custom Sublimated Baseball Jerseys",
+      "description": "Jerseys for baseball match in Miami. High breathability required. Custom front and back logo printing. Sizes S to XXL.",
+      "category": "sportswear",
+      "quantity": 150,
+      "fabric": "100% Polyester Mesh, 180 GSM",
+      "budget_range": "$15.00 - $20.00 / piece",
+      "budget_min": 15,
+      "turnaround_time": "21 days",
+      "status": "open",
+      "techpack_url": "techpack_phantom_sports_v1.pdf",
+      "created_at": "2026-06-04T16:05:09.430Z"
+    },
+    "demand_2": {
+      "id": "demand_2",
+      "buyer_id": "phantom_sports",
+      "buyer_name": "Phantom Sports (Miami)",
+      "title": "100x Custom Tracksuits",
+      "description": "Polyester fleece tracksuits, embroidered logo on chest, custom colors. Delivery required before training camp.",
+      "category": "sportswear",
+      "quantity": 100,
+      "fabric": "Polyester Fleece, 280 GSM",
+      "budget_range": "$25.00 - $30.00 / piece",
+      "budget_min": 25,
+      "turnaround_time": "30 days",
+      "status": "payment_pending",
+      "techpack_url": "techpack_tracksuits_v1.pdf",
+      "created_at": "2026-06-02T16:05:09.431Z"
+    },
+    "demand_1781206919261": {
+      "id": "demand_1781206919261",
+      "buyer_id": "phantom_sports",
+      "buyer_name": "Phantom Sports (Miami)",
+      "title": "100x Custom Apparel Production",
+      "description": "{\"isTechpack\":true,\"category\":\"sportswear\",\"baseSize\":\"M\",\"sizeRange\":\"XS-XXL\",\"fabric\":\"poly_mesh\",\"assetUrl\":\"/assets/proj_belarus.png\"}",
+      "category": "sportswear",
+      "quantity": 100,
+      "fabric": "100% Polyester Mesh (180 GSM)",
+      "budget_range": "$19.00 / piece",
+      "budget_min": 19,
+      "turnaround_time": "21 days",
+      "status": "open",
+      "techpack_url": "/assets/proj_belarus.png",
+      "created_at": "2026-06-11T19:41:59.261Z"
+    }
+  },
+  "bids": {
+    "bid_1_pak": {
+      "id": "bid_1_pak",
+      "demand_id": "demand_1",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "bid_price": 18.5,
+      "turnaround_time": "18 days",
+      "comments": "We have direct access to 180 GSM mesh fabric. Can start immediately. Sublimation print matches Pantone specs exactly.",
+      "status": "submitted",
+      "created_at": "2026-06-05T16:05:09.433Z"
+    },
+    "bid_1_sialkot": {
+      "id": "bid_1_sialkot",
+      "demand_id": "demand_1",
+      "manufacturer_id": "sialkot_stitch",
+      "manufacturer_name": "Sialkot Stitch Group",
+      "bid_price": 16,
+      "turnaround_time": "20 days",
+      "comments": "High quality print guaranteed. Can do custom sizes as requested. Samples ready to send.",
+      "status": "submitted",
+      "created_at": "2026-06-06T16:05:09.433Z"
+    },
+    "bid_1781207127061": {
+      "id": "bid_1781207127061",
+      "demand_id": "demand_1781206919261",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "bid_price": 18.5,
+      "turnaround_time": "27 days",
+      "comments": "Can start immediately.",
+      "status": "submitted",
+      "created_at": "2026-06-11T19:45:27.061Z"
+    }
+  },
+  "orders": {
+    "order_draft": {
+      "id": "order_draft",
+      "demand_id": "demand_draft",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "150x Custom Sublimated Polo Shirts",
+      "amount": 1950,
+      "status": "held",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": true,
+      "fabric": "Polyester Interlock (140 GSM)",
+      "quantity": 150,
+      "turnaround_time": "14 days",
+      "description": "Polo shirts for local golf club. Draft designs created in 3D Canvas. Checking collar stitching choices.",
+      "remarks": "Awaiting final review of button layout.",
+      "created_at": "2026-06-07T15:55:09.446Z"
+    },
+    "order_todo": {
+      "id": "order_todo",
+      "demand_id": "demand_todo",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "sialkot_stitch",
+      "manufacturer_name": "Sialkot Stitch Group",
+      "title": "200x Compression Sleeves",
+      "amount": 1400,
+      "status": "todo",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": false,
+      "fabric": "Nylon/Spandex Blend (220 GSM)",
+      "quantity": 200,
+      "turnaround_time": "10 days",
+      "description": "Arm compression sleeves with heat-transferred logo. Techpack finalized. Waiting for manufacturer contract sign-off.",
+      "remarks": "",
+      "created_at": "2026-06-07T15:05:09.446Z"
+    },
+    "order_payment": {
+      "id": "order_payment",
+      "demand_id": "demand_payment",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "100x Custom Tracksuits",
+      "amount": 2800,
+      "status": "disputed",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": false,
+      "fabric": "Polyester Fleece (280 GSM)",
+      "quantity": 100,
+      "turnaround_time": "30 days",
+      "description": "Fleece tracksuits with embroidered chest logo. Agreement accepted. Escrow deposit payment pending.",
+      "remarks": "",
+      "created_at": "2026-06-07T14:05:09.446Z"
+    },
+    "order_processing": {
+      "id": "order_processing",
+      "demand_id": "demand_processing",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "180x Athletic Tank Tops",
+      "amount": 2200,
+      "status": "processing",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": true,
+      "fabric": "100% Polyester Mesh (180 GSM)",
+      "quantity": 180,
+      "turnaround_time": "21 days",
+      "description": "Fabric sourcing initiated. 180 GSM polyester mesh rolls ordered from local mill. Pattern adjustments approved.",
+      "remarks": "",
+      "created_at": "2026-06-06T16:05:09.446Z"
+    },
+    "order_production": {
+      "id": "order_production",
+      "demand_id": "demand_production",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "sialkot_stitch",
+      "manufacturer_name": "Sialkot Stitch Group",
+      "title": "150x Baseball Jerseys",
+      "amount": 2700,
+      "status": "production",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": true,
+      "fabric": "Polyester Mesh (180 GSM)",
+      "quantity": 150,
+      "turnaround_time": "20 days",
+      "description": "Jerseys are currently in dye sublimation print queue. Printing of Front/Back panels started.",
+      "remarks": "",
+      "created_at": "2026-06-05T16:05:09.446Z"
+    },
+    "order_stitching": {
+      "id": "order_stitching",
+      "demand_id": "demand_stitching",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "300x Running Shorts",
+      "amount": 3600,
+      "status": "stitching",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": true,
+      "fabric": "Polyester Taslan (120 GSM)",
+      "quantity": 300,
+      "turnaround_time": "25 days",
+      "description": "Assembling body panels and sewing elastic waistbands. Double-needle stitch on hems in progress.",
+      "remarks": "",
+      "created_at": "2026-06-04T16:05:09.446Z"
+    },
+    "order_shipping": {
+      "id": "order_shipping",
+      "demand_id": "demand_shipping",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "120x Custom Hoodies",
+      "amount": 3240,
+      "status": "shipping",
+      "tracking_number": "",
+      "shipping_invoice_url": "",
+      "milestone_advance_paid": true,
+      "fabric": "Heavyweight Cotton Fleece (340 GSM)",
+      "quantity": 120,
+      "turnaround_time": "28 days",
+      "description": "Garments packed in polybags. Awaiting carrier pickup. Commercial invoice and customs slips attached.",
+      "remarks": "",
+      "created_at": "2026-06-03T16:05:09.446Z"
+    },
+    "order_shipped": {
+      "id": "order_shipped",
+      "demand_id": "demand_shipped",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "sialkot_stitch",
+      "manufacturer_name": "Sialkot Stitch Group",
+      "title": "250x Soccer Jerseys",
+      "amount": 3750,
+      "status": "shipped",
+      "tracking_number": "DHL-9982-192X",
+      "shipping_invoice_url": "invoice_soccer_250.pdf",
+      "milestone_advance_paid": true,
+      "fabric": "100% Polyester Mesh (150 GSM)",
+      "quantity": 250,
+      "turnaround_time": "21 days",
+      "description": "In transit. Handed over to DHL Express Sialkot Hub. Estimated delivery in Miami in 3 business days.",
+      "remarks": "",
+      "created_at": "2026-06-02T16:05:09.446Z"
+    },
+    "order_received": {
+      "id": "order_received",
+      "demand_id": "demand_received",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "150x Pro Cycling Jerseys",
+      "amount": 4500,
+      "status": "received",
+      "tracking_number": "FEDEX-8871-3310",
+      "shipping_invoice_url": "invoice_cycling_150.pdf",
+      "milestone_advance_paid": true,
+      "fabric": "Lycra/Polyester Blend (160 GSM)",
+      "quantity": 150,
+      "turnaround_time": "24 days",
+      "description": "Delivered to buyer's Miami address. Escrow held pending buyer's confirmation of quality control check.",
+      "remarks": "Delivered on June 5. Buyer checking sizing consistency.",
+      "created_at": "2026-06-01T16:05:09.446Z"
+    },
+    "order_remarks": {
+      "id": "order_remarks",
+      "demand_id": "demand_remarks",
+      "buyer_id": "phantom_sports",
+      "manufacturer_id": "pak_apparel",
+      "manufacturer_name": "Pakistan Apparel Ltd",
+      "title": "100x Hooded Windbreakers",
+      "amount": 2900,
+      "status": "remarks",
+      "tracking_number": "FEDEX-8822-9011",
+      "shipping_invoice_url": "invoice_windbreaker_100.pdf",
+      "milestone_advance_paid": true,
+      "fabric": "Waterproof Taslan Nylon (110 GSM)",
+      "quantity": 100,
+      "turnaround_time": "25 days",
+      "description": "QC issue raised. Loose thread issue on zipper tape and left pocket stitching deviation. Remediation requested.",
+      "remarks": "Hem stitching is slightly uneven. Factory agrees to credit $150 or fix.",
+      "created_at": "2026-05-31T16:05:09.446Z"
+    }
+  },
+  "transactions": {
+    "tx_1": {
+      "id": "tx_1",
+      "order_id": "order_payment",
+      "amount": 2800,
+      "currency": "USD",
+      "type": "escrow_deposit",
+      "status": "succeeded",
+      "tx_hash": "whop_ch_56y3f7g9a21b",
+      "created_at": "2026-06-05T16:05:09.447Z"
+    },
+    "tx_disp_1780848322352": {
+      "id": "tx_disp_1780848322352",
+      "order_id": "order_draft",
+      "amount": 1950,
+      "currency": "USD",
+      "type": "buyer_dispute",
+      "status": "flagged",
+      "tx_hash": "whop_disp_watib4uevx8",
+      "created_at": "2026-06-07T16:05:22.352Z"
+    },
+    "tx_dep_1780848322984": {
+      "id": "tx_dep_1780848322984",
+      "order_id": "order_draft",
+      "amount": 1950,
+      "currency": "USD",
+      "type": "escrow_deposit",
+      "status": "succeeded",
+      "tx_hash": "whop_ch_5bu123brjf9",
+      "created_at": "2026-06-07T16:05:22.984Z"
+    },
+    "tx_sol_1780848336058": {
+      "id": "tx_sol_1780848336058",
+      "order_id": "order_draft",
+      "amount": 975,
+      "currency": "USDC",
+      "type": "milestone_advance",
+      "status": "succeeded",
+      "tx_hash": "solana_jirir3txk8fspx5K7w9uXp6zQy",
+      "created_at": "2026-06-07T16:05:36.058Z"
+    },
+    "tx_sol_1781207251308": {
+      "id": "tx_sol_1781207251308",
+      "order_id": "order_draft",
+      "amount": 500,
+      "currency": "USDC",
+      "type": "manual_payout_test",
+      "status": "succeeded",
+      "tx_hash": "solana_31yzdwtxdqcwd55K7w9uXp6zQy",
+      "created_at": "2026-06-11T19:47:31.308Z"
+    },
+    "tx_disp_1781207251904": {
+      "id": "tx_disp_1781207251904",
+      "order_id": "order_payment",
+      "amount": 2800,
+      "currency": "USD",
+      "type": "buyer_dispute",
+      "status": "flagged",
+      "tx_hash": "whop_disp_ca98dft8kp8",
+      "created_at": "2026-06-11T19:47:31.904Z"
+    },
+    "tx_dep_1781308367355": {
+      "id": "tx_dep_1781308367355",
+      "order_id": "order_payment",
+      "amount": 2800,
+      "currency": "USD",
+      "type": "escrow_deposit",
+      "status": "succeeded",
+      "tx_hash": "whop_ch_hc64otkgcpl",
+      "created_at": "2026-06-12T23:52:47.355Z"
+    },
+    "tx_disp_1781308367858": {
+      "id": "tx_disp_1781308367858",
+      "order_id": "order_payment",
+      "amount": 2800,
+      "currency": "USD",
+      "type": "buyer_dispute",
+      "status": "flagged",
+      "tx_hash": "whop_disp_rgo10vq0r0h",
+      "created_at": "2026-06-12T23:52:47.858Z"
+    },
+    "tx_sol_1781308370271": {
+      "id": "tx_sol_1781308370271",
+      "order_id": "order_payment",
+      "amount": 1120,
+      "currency": "USDC",
+      "type": "milestone_advance",
+      "status": "succeeded",
+      "tx_hash": "solana_eqq3dftxhgm1gt5K7w9uXp6zQy",
+      "created_at": "2026-06-12T23:52:50.271Z"
+    }
+  },
+  "logs": [
+    {
+      "id": "log_1781308371598_yru1l",
+      "timestamp": "2026-06-12T23:52:51.598Z",
+      "category": "DEMAND",
+      "message": "Updating demand demand_payment status to: in_production"
+    },
+    {
+      "id": "log_1781308370375_h2g9n",
+      "timestamp": "2026-06-12T23:52:50.375Z",
+      "category": "DEMAND",
+      "message": "Updating demand demand_payment status to: in_production"
+    },
+    {
+      "id": "log_1781308370347_sookk",
+      "timestamp": "2026-06-12T23:52:50.347Z",
+      "category": "SOLANA",
+      "message": "Tx Succeeded: $1120 USDC transfered to Sialkot wallet Fass...9xP6. Hash: solana_eqq3dftxh..."
+    },
+    {
+      "id": "log_1781308370324_s0ruf",
+      "timestamp": "2026-06-12T23:52:50.324Z",
+      "category": "TX",
+      "message": "Recording ledger entry: milestone_advance (succeeded) - $1120"
+    },
+    {
+      "id": "log_1781308370304_ahsz8",
+      "timestamp": "2026-06-12T23:52:50.304Z",
+      "category": "TX",
+      "message": "Recording ledger entry: milestone_advance (succeeded) - $1120"
+    },
+    {
+      "id": "log_1781308369457_zkh6o",
+      "timestamp": "2026-06-12T23:52:49.457Z",
+      "category": "SOLANA",
+      "message": "Initiating on-chain Solana transfer: 1120 USDC for Order order_payment"
+    },
+    {
+      "id": "log_1781308369373_d7wti",
+      "timestamp": "2026-06-12T23:52:49.373Z",
+      "category": "ESCROW",
+      "message": "Releasing Milestone 1 advance (40%): $1120 USDC..."
+    },
+    {
+      "id": "log_1781308369313_emn86",
+      "timestamp": "2026-06-12T23:52:49.313Z",
+      "category": "WHOP_WEBHOOK",
+      "message": "Order order_payment flagged as DISPUTED. Arbitration workspace activated."
+    },
+    {
+      "id": "log_1781308368487_g18in",
+      "timestamp": "2026-06-12T23:52:48.487Z",
+      "category": "WHOP_WEBHOOK",
+      "message": "Escrow payment of $2800 successfully held for Order: order_payment"
+    },
+    {
+      "id": "log_1781308368147_sv39p",
+      "timestamp": "2026-06-12T23:52:48.147Z",
+      "category": "TX",
+      "message": "Recording ledger entry: buyer_dispute (flagged) - $2800"
+    },
+    {
+      "id": "log_1781308368101_uxrrg",
+      "timestamp": "2026-06-12T23:52:48.101Z",
+      "category": "TX",
+      "message": "Recording ledger entry: escrow_deposit (succeeded) - $2800"
+    },
+    {
+      "id": "log_1781308367999_r5kln",
+      "timestamp": "2026-06-12T23:52:47.999Z",
+      "category": "TX",
+      "message": "Recording ledger entry: buyer_dispute (flagged) - $2800"
+    },
+    {
+      "id": "log_1781308367801_iebau",
+      "timestamp": "2026-06-12T23:52:47.801Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1781308367710_85gx5",
+      "timestamp": "2026-06-12T23:52:47.711Z",
+      "category": "TX",
+      "message": "Recording ledger entry: escrow_deposit (succeeded) - $2800"
+    },
+    {
+      "id": "log_1781308367425_5t62d",
+      "timestamp": "2026-06-12T23:52:47.425Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1781308367329_vytmz",
+      "timestamp": "2026-06-12T23:52:47.329Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1781308367218_wavjo",
+      "timestamp": "2026-06-12T23:52:47.218Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1781308364216_0jc81",
+      "timestamp": "2026-06-12T23:52:44.217Z",
+      "category": "WHOP_WEBHOOK",
+      "message": "Processing simulated event: payment_disputed"
+    },
+    {
+      "id": "log_1781308363203_e35li",
+      "timestamp": "2026-06-12T23:52:43.205Z",
+      "category": "WHOP_WEBHOOK",
+      "message": "Processing simulated event: payment_succeeded"
+    },
+    {
+      "id": "log_1781207252159_gvhcl",
+      "timestamp": "2026-06-11T19:47:32.160Z",
+      "category": "WHOP_WEBHOOK",
+      "message": "Order order_payment flagged as DISPUTED. Arbitration workspace activated."
+    },
+    {
+      "id": "log_1781207251960_o6im6",
+      "timestamp": "2026-06-11T19:47:31.960Z",
+      "category": "TX",
+      "message": "Recording ledger entry: buyer_dispute (flagged) - $2800"
+    },
+    {
+      "id": "log_1781207251920_y8zon",
+      "timestamp": "2026-06-11T19:47:31.920Z",
+      "category": "TX",
+      "message": "Recording ledger entry: buyer_dispute (flagged) - $2800"
+    },
+    {
+      "id": "log_1781207251880_syb47",
+      "timestamp": "2026-06-11T19:47:31.881Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1781207251839_i1ic6",
+      "timestamp": "2026-06-11T19:47:31.839Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1781207251440_fughl",
+      "timestamp": "2026-06-11T19:47:31.440Z",
+      "category": "SOLANA",
+      "message": "Tx Succeeded: $500 USDC transfered to Sialkot wallet Fass...9xP6. Hash: solana_31yzdwtxd..."
+    },
+    {
+      "id": "log_1781207251408_515bs",
+      "timestamp": "2026-06-11T19:47:31.408Z",
+      "category": "TX",
+      "message": "Recording ledger entry: manual_payout_test (succeeded) - $500"
+    },
+    {
+      "id": "log_1781207251336_v0on9",
+      "timestamp": "2026-06-11T19:47:31.336Z",
+      "category": "TX",
+      "message": "Recording ledger entry: manual_payout_test (succeeded) - $500"
+    },
+    {
+      "id": "log_1781207250499_qziez",
+      "timestamp": "2026-06-11T19:47:30.499Z",
+      "category": "SOLANA",
+      "message": "Initiating on-chain Solana transfer: 500 USDC for Order order_draft"
+    },
+    {
+      "id": "log_1781207249794_ovans",
+      "timestamp": "2026-06-11T19:47:29.795Z",
+      "category": "WHOP_WEBHOOK",
+      "message": "Processing simulated event: payment_disputed"
+    },
+    {
+      "id": "log_1781207130588_gozkm",
+      "timestamp": "2026-06-11T19:45:30.588Z",
+      "category": "BID",
+      "message": "Submitting bid for $18.5 on demand demand_1781206919261"
+    },
+    {
+      "id": "log_1781207127150_wxfwl",
+      "timestamp": "2026-06-11T19:45:27.152Z",
+      "category": "BID",
+      "message": "Submitting bid for $18.5 on demand demand_1781206919261"
+    },
+    {
+      "id": "log_1781206919758_s1cjb",
+      "timestamp": "2026-06-11T19:41:59.758Z",
+      "category": "DEMAND",
+      "message": "Creating demand: 100x Custom Apparel Production by Phantom Sports (Miami)"
+    },
+    {
+      "id": "log_1781206919609_8vj8m",
+      "timestamp": "2026-06-11T19:41:59.610Z",
+      "category": "DEMAND",
+      "message": "Creating demand: 100x Custom Apparel Production by Phantom Sports (Miami)"
+    },
+    {
+      "id": "log_1780848387394_a7lfc",
+      "timestamp": "2026-06-07T16:06:27.394Z",
+      "category": "ORDER",
+      "message": "Order order_processing status updated via drag-n-drop: payment → processing"
+    },
+    {
+      "id": "log_1780848387343_e6k9x",
+      "timestamp": "2026-06-07T16:06:27.343Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_processing for $2200"
+    },
+    {
+      "id": "log_1780848387276_8l2to",
+      "timestamp": "2026-06-07T16:06:27.276Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_processing for $2200"
+    },
+    {
+      "id": "log_1780848385558_9h1ck",
+      "timestamp": "2026-06-07T16:06:25.558Z",
+      "category": "ORDER",
+      "message": "Order order_processing status updated via drag-n-drop: processing → payment"
+    },
+    {
+      "id": "log_1780848385533_zf4lh",
+      "timestamp": "2026-06-07T16:06:25.533Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_processing for $2200"
+    },
+    {
+      "id": "log_1780848385456_zlahm",
+      "timestamp": "2026-06-07T16:06:25.456Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_processing for $2200"
+    },
+    {
+      "id": "log_1780848377788_04idw",
+      "timestamp": "2026-06-07T16:06:17.788Z",
+      "category": "ORDER",
+      "message": "Order order_payment status updated via drag-n-drop: payment → todo"
+    },
+    {
+      "id": "log_1780848377742_eg4qw",
+      "timestamp": "2026-06-07T16:06:17.742Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1780848377663_gc014",
+      "timestamp": "2026-06-07T16:06:17.663Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_payment for $2800"
+    },
+    {
+      "id": "log_1780848375286_if4cm",
+      "timestamp": "2026-06-07T16:06:15.286Z",
+      "category": "ORDER",
+      "message": "Order order_todo status updated via drag-n-drop: draft → todo"
+    },
+    {
+      "id": "log_1780848375244_rsvry",
+      "timestamp": "2026-06-07T16:06:15.244Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_todo for $1400"
+    },
+    {
+      "id": "log_1780848375205_xpb27",
+      "timestamp": "2026-06-07T16:06:15.205Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_todo for $1400"
+    },
+    {
+      "id": "log_1780848373211_kpffm",
+      "timestamp": "2026-06-07T16:06:13.211Z",
+      "category": "ORDER",
+      "message": "Order order_todo status updated via drag-n-drop: todo → draft"
+    },
+    {
+      "id": "log_1780848373173_3xbeo",
+      "timestamp": "2026-06-07T16:06:13.173Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_todo for $1400"
+    },
+    {
+      "id": "log_1780848373072_l2eir",
+      "timestamp": "2026-06-07T16:06:13.073Z",
+      "category": "ORDER",
+      "message": "Creating order contract order_todo for $1400"
+    },
+    {
+      "id": "log_1780848343825_0iowm",
+      "timestamp": "2026-06-07T16:05:43.825Z",
+      "category": "DEMAND",
+      "message": "Updating demand demand_draft status to: in_production"
+    },
+    {
+      "id": "log_1780848338288_4hweb",
+      "timestamp": "2026-06-07T16:05:38.288Z",
+      "category": "DEMAND",
+      "message": "Updating demand demand_draft status to: in_production"
+    }
+  ],
+  "messages": {}
+}

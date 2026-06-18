@@ -1,0 +1,203 @@
+
+<h2 class="sr-only">proov order creation showing the sourcing versus selling role choice, multi-product pricing with an optional split bidding toggle and best-practice tip, and a split bid comparison view with per-product tabs</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.wrap{padding:1rem 0}
+.section-block{margin-bottom:2rem}
+.section-block:last-child{margin-bottom:0}
+.section-title{font-size:15px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.section-sub{font-size:13px;color:var(--color-text-secondary);margin-bottom:1.25rem;line-height:1.5}
+.role-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.role-card{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:18px;cursor:pointer;transition:border-color 0.15s;background:var(--color-background-primary)}
+.role-card:hover{border-color:var(--color-border-secondary)}
+.role-card.selected{border:1.5px solid var(--color-border-info);background:var(--color-background-info)}
+.role-icon{width:40px;height:40px;border-radius:50%;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--color-text-secondary);margin-bottom:10px}
+.role-card.selected .role-icon{background:var(--color-background-primary);color:var(--color-text-info)}
+.role-title{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.role-subtext{font-size:12px;color:var(--color-text-info);font-weight:500;margin-bottom:8px}
+.role-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+.products-table{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:1rem}
+.pt-header{display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:8px;padding:8px 14px;background:var(--color-background-secondary);font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.04em}
+.pt-row{display:grid;grid-template-columns:2fr 1fr 1fr 90px;gap:8px;padding:10px 14px;border-bottom:0.5px solid var(--color-border-tertiary);align-items:center}
+.pt-row:last-child{border-bottom:none}
+.pt-product{display:flex;align-items:center;gap:8px}
+.pt-thumb{width:28px;height:28px;border-radius:6px;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;color:var(--color-text-tertiary);font-size:13px;flex-shrink:0}
+.pt-name{font-size:12px;font-weight:500;color:var(--color-text-primary)}
+.pt-qty{font-size:11px;color:var(--color-text-secondary)}
+.pt-price-input{font-size:12px;font-weight:500;border:0.5px solid var(--color-border-secondary);border-radius:6px;padding:5px 8px;width:100%}
+.pt-total{font-size:12px;font-weight:500;color:#15803d;text-align:right}
+.same-mfr-note{display:flex;align-items:flex-start;gap:8px;background:#EAF3DE;border-radius:var(--border-radius-md);padding:10px 12px;margin-bottom:1.25rem}
+.same-mfr-note i{color:#27500A;font-size:14px;margin-top:1px;flex-shrink:0}
+.same-mfr-text{font-size:12px;color:#27500A;line-height:1.5}
+.split-toggle-row{display:flex;align-items:center;justify-content:space-between;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:12px 14px;margin-bottom:1.25rem}
+.split-toggle-text{flex:1}
+.split-toggle-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:2px}
+.split-toggle-desc{font-size:11px;color:var(--color-text-secondary)}
+.switch{position:relative;width:40px;height:22px;background:var(--color-background-secondary);border-radius:20px;cursor:pointer;border:0.5px solid var(--color-border-tertiary);flex-shrink:0}
+.switch.on{background:var(--color-text-primary)}
+.switch-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--color-background-primary);transition:left 0.15s}
+.switch.on .switch-knob{left:20px}
+.order-total-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--color-background-secondary);font-size:13px}
+.order-total-label{color:var(--color-text-secondary)}
+.order-total-val{font-weight:500;color:var(--color-text-primary)}
+.bid-tabs{display:flex;gap:4px;margin-bottom:1rem;border-bottom:0.5px solid var(--color-border-tertiary)}
+.bid-tab{font-size:12px;padding:8px 14px;cursor:pointer;color:var(--color-text-secondary);border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px}
+.bid-tab.active{color:var(--color-text-primary);font-weight:500;border-bottom-color:var(--color-text-primary)}
+.bid-tab-thumb{width:18px;height:18px;border-radius:4px;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--color-text-tertiary)}
+.bid-tab-count{font-size:10px;background:var(--color-background-secondary);padding:1px 6px;border-radius:20px}
+.bid-tab.active .bid-tab-count{background:var(--color-text-primary);color:var(--color-background-primary)}
+.bid-winner-chip{font-size:9px;background:#EAF3DE;color:#27500A;padding:1px 6px;border-radius:20px}
+.bid-panel{display:none}
+.bid-panel.active{display:block}
+.bid-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:12px;margin-bottom:8px}
+.bid-card.accepted{border:1.5px solid #639922;background:#EAF3DE}
+.bid-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.bid-mfr{display:flex;align-items:center;gap:8px}
+.bid-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500}
+.bid-name{font-size:12px;font-weight:500;color:var(--color-text-primary)}
+.bid-loc{font-size:10px;color:var(--color-text-secondary)}
+.bid-price{font-size:14px;font-weight:500;color:#15803d}
+.bid-meta-row{display:flex;gap:10px;font-size:11px;color:var(--color-text-secondary)}
+.accepted-tag{font-size:10px;font-weight:500;color:#27500A;display:flex;align-items:center;gap:3px;margin-bottom:6px}
+.order-progress-note{display:flex;align-items:center;gap:8px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;margin-top:1rem;font-size:12px;color:var(--color-text-secondary)}
+</style>
+
+<div class="wrap">
+
+  <div class="section-block">
+    <div class="section-title">What are you creating this order for?</div>
+    <div class="section-sub">This determines how your order flows once it's complete. Both options use the same techpack builder.</div>
+    <div class="role-cards">
+      <div class="role-card selected" onclick="selectRole(this,'sourcing')">
+        <div class="role-icon"><i class="ti ti-shopping-cart" aria-hidden="true"></i></div>
+        <div class="role-title">Sourcing</div>
+        <div class="role-subtext">Need this made</div>
+        <div class="role-desc">You have a product idea and want manufacturers to bid on producing it, or invite a specific manufacturer to quote.</div>
+      </div>
+      <div class="role-card" onclick="selectRole(this,'selling')">
+        <div class="role-icon"><i class="ti ti-building-factory-2" aria-hidden="true"></i></div>
+        <div class="role-title">Selling</div>
+        <div class="role-subtext">I'll make it</div>
+        <div class="role-desc">You already manufacture this for a buyer. Set your price and send a payment link directly to them.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-block">
+    <div class="section-title">Set pricing for your products</div>
+    <div class="section-sub">Team Kit Order — 3 products from your Studio designs.</div>
+
+    <div class="same-mfr-note">
+      <i class="ti ti-bulb" aria-hidden="true"></i>
+      <div class="same-mfr-text">Best practice: orders work best when all products can be made by one manufacturer — e.g. a sportswear factory that produces the full kit. If your products span very different industries, consider creating separate orders instead.</div>
+    </div>
+
+    <div class="products-table">
+      <div class="pt-header"><span>Product</span><span>Target price</span><span></span><span style="text-align:right">Total</span></div>
+      <div class="pt-row">
+        <div class="pt-product"><div class="pt-thumb"><i class="ti ti-shirt-sport" aria-hidden="true"></i></div><div><div class="pt-name">Home Jersey v3</div><div class="pt-qty">500 sets</div></div></div>
+        <input class="pt-price-input" value="$8.00 / set" oninput="recalcTotal()">
+        <span></span>
+        <span class="pt-total">$4,000</span>
+      </div>
+      <div class="pt-row">
+        <div class="pt-product"><div class="pt-thumb"><i class="ti ti-shirt" aria-hidden="true"></i></div><div><div class="pt-name">Training Shorts</div><div class="pt-qty">500 pcs</div></div></div>
+        <input class="pt-price-input" value="$4.20 / pc" oninput="recalcTotal()">
+        <span></span>
+        <span class="pt-total">$2,100</span>
+      </div>
+      <div class="pt-row">
+        <div class="pt-product"><div class="pt-thumb"><i class="ti ti-sock" aria-hidden="true"></i></div><div><div class="pt-name">Match Socks</div><div class="pt-qty">500 pairs</div></div></div>
+        <input class="pt-price-input" value="$1.50 / pair" oninput="recalcTotal()">
+        <span></span>
+        <span class="pt-total">$750</span>
+      </div>
+      <div class="order-total-row">
+        <span class="order-total-label">Order target total</span>
+        <span class="order-total-val" id="order-total">$6,850</span>
+      </div>
+    </div>
+
+    <div class="split-toggle-row">
+      <div class="split-toggle-text">
+        <div class="split-toggle-title">Allow split bidding</div>
+        <div class="split-toggle-desc">Let manufacturers bid on individual products instead of the whole order. You can accept different winners per product.</div>
+      </div>
+      <div class="switch" id="split-switch" onclick="toggleSplit()"><div class="switch-knob"></div></div>
+    </div>
+  </div>
+
+  <div class="section-block">
+    <div class="section-title">Compare bids — split bidding enabled</div>
+    <div class="section-sub">This order has separate bid pools per product. Accept a winner in each tab to move it forward.</div>
+
+    <div class="bid-tabs">
+      <span class="bid-tab active" onclick="setBidTab(this,0)"><span class="bid-tab-thumb"><i class="ti ti-shirt-sport" style="font-size:9px" aria-hidden="true"></i></span> Jersey <span class="bid-tab-count">7</span></span>
+      <span class="bid-tab" onclick="setBidTab(this,1)"><span class="bid-tab-thumb"><i class="ti ti-shirt" style="font-size:9px" aria-hidden="true"></i></span> Shorts <span class="bid-tab-count">4</span> <span class="bid-winner-chip">Won</span></span>
+      <span class="bid-tab" onclick="setBidTab(this,2)"><span class="bid-tab-thumb"><i class="ti ti-sock" style="font-size:9px" aria-hidden="true"></i></span> Socks <span class="bid-tab-count">2</span></span>
+    </div>
+
+    <div class="bid-panel active" id="bid-panel-0">
+      <div class="bid-card">
+        <div class="bid-header">
+          <div class="bid-mfr"><div class="bid-av" style="background:#E6F1FB;color:#0C447C">AS</div><div><div class="bid-name">Ali Sports Mfg.</div><div class="bid-loc">Sialkot, Pakistan</div></div></div>
+          <span class="bid-price">$7.35/set</span>
+        </div>
+        <div class="bid-meta-row"><span><i class="ti ti-clock" style="font-size:11px" aria-hidden="true"></i> 18 days</span><span><i class="ti ti-star" style="font-size:11px" aria-hidden="true"></i> 4.9</span><span>214 orders</span></div>
+      </div>
+      <div class="bid-card">
+        <div class="bid-header">
+          <div class="bid-mfr"><div class="bid-av" style="background:#EAF3DE;color:#27500A">PK</div><div><div class="bid-name">ProKit Sportswear</div><div class="bid-loc">Lahore, Pakistan</div></div></div>
+          <span class="bid-price">$7.80/set</span>
+        </div>
+        <div class="bid-meta-row"><span><i class="ti ti-clock" style="font-size:11px" aria-hidden="true"></i> 23 days</span><span><i class="ti ti-star" style="font-size:11px" aria-hidden="true"></i> 4.6</span><span>87 orders</span></div>
+      </div>
+    </div>
+
+    <div class="bid-panel" id="bid-panel-1">
+      <div class="bid-card accepted">
+        <div class="accepted-tag"><i class="ti ti-circle-check" style="font-size:12px" aria-hidden="true"></i> Accepted — production starting</div>
+        <div class="bid-header">
+          <div class="bid-mfr"><div class="bid-av" style="background:#FAEEDA;color:#633806">SF</div><div><div class="bid-name">Sialkot Fabrics Co.</div><div class="bid-loc">Sialkot, Pakistan</div></div></div>
+          <span class="bid-price">$4.10/pc</span>
+        </div>
+        <div class="bid-meta-row"><span><i class="ti ti-clock" style="font-size:11px" aria-hidden="true"></i> 16 days</span><span><i class="ti ti-star" style="font-size:11px" aria-hidden="true"></i> 4.8</span><span>142 orders</span></div>
+      </div>
+    </div>
+
+    <div class="bid-panel" id="bid-panel-2">
+      <div class="bid-card">
+        <div class="bid-header">
+          <div class="bid-mfr"><div class="bid-av" style="background:#EEEDFE;color:#3C3489">KF</div><div><div class="bid-name">Knit Forge Sialkot</div><div class="bid-loc">Sialkot, Pakistan</div></div></div>
+          <span class="bid-price">$1.45/pair</span>
+        </div>
+        <div class="bid-meta-row"><span><i class="ti ti-clock" style="font-size:11px" aria-hidden="true"></i> 12 days</span><span><i class="ti ti-star" style="font-size:11px" aria-hidden="true"></i> 4.7</span><span>56 orders</span></div>
+      </div>
+    </div>
+
+    <div class="order-progress-note">
+      <i class="ti ti-info-circle" style="font-size:14px" aria-hidden="true"></i>
+      Order moves to Production once every product has an accepted bid. Shorts is in production — Jersey and Socks are still awaiting your decision.
+    </div>
+  </div>
+
+</div>
+
+<script>
+function selectRole(el, role) {
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function recalcTotal() {
+  document.getElementById('order-total').textContent = '$6,850';
+}
+function toggleSplit() {
+  document.getElementById('split-switch').classList.toggle('on');
+}
+function setBidTab(el, idx) {
+  document.querySelectorAll('.bid-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.bid-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('bid-panel-'+idx).classList.add('active');
+}
+</script>
