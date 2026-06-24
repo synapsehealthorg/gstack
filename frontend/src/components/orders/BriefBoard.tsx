@@ -1,6 +1,16 @@
 "use client"
 
 import React, { useState } from "react"
+import Link from "next/link"
+import type { Demand, Order } from "@/lib/db"
+import OrderListRow from "./OrderListRow"
+
+interface BriefBoardProps {
+  orders?: Order[]
+  demands?: Demand[]
+  currentUserId?: string
+  currentUserRole?: string
+}
 
 // ── Mock data matching proov_orders_page_list_kanban.html ──────────────────
 const MOCK_ORDERS = [
@@ -124,8 +134,9 @@ const FILTERS = [
   { key: "archived", label: "Archived", count: 7 },
 ]
 
-export default function BriefBoard() {
+export default function BriefBoard({ orders = [], currentUserId = "phantom_sports_001" }: BriefBoardProps) {
   const [activeFilter, setActiveFilter] = useState("mine")
+  const hasRealOrders = orders.length > 0
 
   return (
     <div style={{ background: "#fff", borderRadius: "8px" }}>
@@ -182,12 +193,20 @@ export default function BriefBoard() {
 
       {/* List rows */}
       <div style={{ border: "0.5px solid rgba(9,9,11,0.08)", borderRadius: "8px", overflow: "hidden", background: "#fff" }}>
-        {MOCK_ORDERS.map((order, i) => {
+        {hasRealOrders ? orders.map((order) => {
+          const orderWithProducts = order as Order & { products?: Parameters<typeof OrderListRow>[0]["products"] }
+          return (
+          <Link key={order.id} href={`/orders/${order.id}`} style={{ display: "block", textDecoration: "none" }}>
+            <OrderListRow order={order} products={orderWithProducts.products || []} currentUserId={currentUserId} />
+          </Link>
+          )
+        }) : MOCK_ORDERS.map((order, i) => {
           const st = STATUS[order.status]
           const src = SOURCE[order.source]
           return (
-            <div
+            <Link
               key={order.id}
+              href={`/orders/${order.id}`}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -197,6 +216,7 @@ export default function BriefBoard() {
                 cursor: "pointer",
                 background: "#fff",
                 transition: "background 0.1s",
+                textDecoration: "none",
               }}
               onMouseEnter={e => (e.currentTarget.style.background = "#F9F9F9")}
               onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
@@ -273,7 +293,7 @@ export default function BriefBoard() {
                 width: "16px", height: "16px", borderRadius: "4px", flexShrink: 0,
                 border: "1px solid rgba(9,9,11,0.2)", display: "inline-block",
               }} />
-            </div>
+            </Link>
           )
         })}
       </div>

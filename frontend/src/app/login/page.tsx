@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { login, signup } from "./actions";
+import { createClient } from "@/utils/supabase/client";
 import { 
   Mail, 
   Lock, 
@@ -16,6 +17,7 @@ import {
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -35,7 +37,20 @@ export default function LoginPage() {
     if (result?.error) {
       setError(result.error);
       setLoading(false);
+    } else if (result && "success" in result && result.success) {
+      setSuccess(result.success);
+      setLoading(false);
     }
+  };
+
+  const handleGoogle = async () => {
+    setLoading(true); setError(null); setSuccess(null);
+    const supabase = createClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
+    });
+    if (oauthError) { setError(oauthError.message); setLoading(false); }
   };
 
   return (
@@ -73,6 +88,7 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
+              {success && <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{success}</div>}
 
               {/* Authentication Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -165,24 +181,27 @@ export default function LoginPage() {
               {/* Google signup/login */}
               <button
                 type="button"
-                onClick={() => alert("Google signup simulation triggered")}
+                onClick={() => void handleGoogle()}
+                disabled={loading}
                 className="w-full flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 transition-colors py-3 rounded-2xl font-semibold text-slate-700 text-sm shadow-sm"
               >
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" className="w-4 h-4" />
                 {isLogin ? "Signin with Google" : "Signup with Google"}
               </button>
 
-              {/* Developer Bypass Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  document.cookie = "sb-bypass=true; path=/; max-age=86400"; // Valid for 1 day
-                  window.location.href = "/dashboard";
-                }}
-                className="w-full mt-3 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-2xl transition-colors text-sm shadow-sm"
-              >
-                Developer Bypass (Skip Auth)
-              </button>
+              {process.env.NODE_ENV === "development" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.cookie = "dev_bypass=true; path=/";
+                    window.location.href = "/dashboard";
+                  }}
+                  className="w-full flex items-center justify-center gap-2 border border-slate-200 bg-slate-100 hover:bg-slate-200 transition-colors py-3 rounded-2xl font-semibold text-slate-500 text-sm shadow-sm mt-3"
+                >
+                  Developer Bypass
+                </button>
+              )}
+
             </div>
 
             {/* Switch authentication modes */}
@@ -192,6 +211,7 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError(null);
+                  setSuccess(null);
                 }}
                 className="text-slate-500 hover:text-slate-900 font-medium transition-colors"
               >

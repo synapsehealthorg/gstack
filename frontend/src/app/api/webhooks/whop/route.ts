@@ -83,7 +83,8 @@ export async function POST(request: Request) {
     }
     
     return NextResponse.json({ status: "processed" })
-  } catch (e: any) {
-    return NextResponse.json({ status: "error", error: e.message }, { status: 400 })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown webhook error"
+    return NextResponse.json({ status: "error", error: message }, { status: 400 })
   }
 }

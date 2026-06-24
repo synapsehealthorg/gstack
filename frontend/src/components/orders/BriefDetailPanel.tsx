@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Order, Demand, proovDb } from "@/lib/db"
+import { Order, Demand, User, proovDb } from "@/lib/db"
 import TechpackViewer from "@/components/techpack/TechpackViewer"
 
 interface BriefDetailPanelProps {
@@ -13,10 +13,8 @@ interface BriefDetailPanelProps {
 }
 
 export default function BriefDetailPanel({ order, demand, onClose, currentUserId, currentUserRole }: BriefDetailPanelProps) {
-  if (!order) return null
-
   const [activeTab, setActiveTab] = useState<"overview" | "techpack">("overview");
-  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
 
   React.useEffect(() => {
@@ -28,6 +26,8 @@ export default function BriefDetailPanel({ order, demand, onClose, currentUserId
     }
     loadProfile();
   }, [currentUserId]);
+
+  if (!order) return null
 
   const handleShare = () => {
     if (!order) return;
@@ -71,7 +71,7 @@ export default function BriefDetailPanel({ order, demand, onClose, currentUserId
 
   let stageTitle = "Order Details"
   if (currentStatus === "draft" || currentStatus === "open") {
-    stageTitle = "Live Brief"
+    stageTitle = "Live RFQ"
   } else if (["todo", "processing", "production", "stitching"].includes(currentStatus)) {
     stageTitle = "In Production"
   } else if (["shipped", "received", "released"].includes(currentStatus)) {
@@ -180,12 +180,12 @@ export default function BriefDetailPanel({ order, demand, onClose, currentUserId
               </div>
             </div>
 
-            {/* If no order exists (only demand), show Live Brief status */}
+            {/* If no order exists (only demand), show Live RFQ status */}
             {!order && (
               <div style={{ backgroundColor: "var(--bg-secondary)", padding: "16px", borderRadius: "8px" }}>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>Live Brief</h4>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>Live RFQ</h4>
                 <div style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "16px" }}>
-                  This brief is currently live and receiving bids from manufacturers.
+                  This RFQ is currently live and receiving bids from manufacturers.
                 </div>
                 {currentUserRole === "manufacturer" && (
                   <button className="btn-primary" style={{ width: "100%" }}>Place Bid</button>
@@ -201,7 +201,7 @@ export default function BriefDetailPanel({ order, demand, onClose, currentUserId
                   Products added from Studio will appear here.
                 </div>
                 <button className="btn-primary" style={{ width: "100%", marginTop: "16px" }}>
-                  Edit & Submit Brief
+                  Edit & Submit Order
                 </button>
               </div>
             )}

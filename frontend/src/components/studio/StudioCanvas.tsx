@@ -1,8 +1,9 @@
 "use client"
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { ReactFlow, Background, BackgroundVariant, Controls } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useStudioStore } from '@/lib/store/studioStore'
+import { JsonValue, proovDb } from '@/lib/db'
 import StudioPromptBar from './StudioPromptBar'
 import ProductRootNode from './nodes/ProductRootNode'
 import LayersNode from './nodes/LayersNode'
@@ -32,6 +33,7 @@ const TextNode = ({ data }: { data: any }) => {
 }
 
 export default function StudioCanvas() {
+  const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null)
   const { 
     nodes, 
     edges, 
@@ -43,6 +45,32 @@ export default function StudioCanvas() {
     expandedNodeId,
     activeTool
   } = useStudioStore()
+
+  const saveProductSnapshot = async () => {
+    setSnapshotStatus("Saving...")
+    const rootNode = nodes.find((node) => node.type === "productRoot") || nodes.find((node) => node.type === "product")
+    const specsNode = nodes.find((node) => node.type === "specsNode")
+    const layersNode = nodes.find((node) => node.type === "layersNode")
+
+    const snapshot = await proovDb.saveProductSnapshot({
+      name: String(rootNode?.data?.templateId || rootNode?.data?.name || "Studio product"),
+      category: "sportswear",
+      source: "studio",
+      is_blank_template: false,
+      layers: (Array.isArray(layersNode?.data?.layers) ? layersNode.data.layers : []) as JsonValue[],
+      specs: {
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+        specs: (Array.isArray(specsNode?.data?.specs) ? specsNode.data.specs : []) as JsonValue,
+        canvasState: { nodes, edges } as unknown as JsonValue,
+      },
+      colorways: [],
+      branding_profile: {},
+    })
+
+    setSnapshotStatus(snapshot ? "Saved to Products" : "Sign in to save")
+    window.setTimeout(() => setSnapshotStatus(null), 2600)
+  }
 
   // Register custom node types
   const nodeTypes = useMemo(() => ({
@@ -109,6 +137,29 @@ export default function StudioCanvas() {
         <Background color="#333" gap={20} size={1} variant={BackgroundVariant.Dots} />
         <Controls showInteractive={false} style={{ display: 'none' }} />
       </ReactFlow>
+
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {snapshotStatus && (
+          <span style={{ color: '#d1d5db', background: '#232427', border: '1px solid #2c303a', borderRadius: 6, padding: '7px 10px', fontSize: 12 }}>
+            {snapshotStatus}
+          </span>
+        )}
+        <button
+          onClick={saveProductSnapshot}
+          style={{
+            border: '1px solid #E8E0CF',
+            background: '#E8E0CF',
+            color: '#161614',
+            borderRadius: 6,
+            padding: '8px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Save product snapshot
+        </button>
+      </div>
 
       {/* Floating Prompt Bar at the bottom */}
       <StudioPromptBar />

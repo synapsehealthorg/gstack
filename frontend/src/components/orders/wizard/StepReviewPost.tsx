@@ -34,7 +34,7 @@ export default function StepReviewPost() {
         for (const p of state.products) {
           await proovDb.saveOrderProduct({ ...p, order_id: newOrder.id })
         }
-        window.location.href = `/orders/${newOrder.id}/bids`
+        window.location.href = `/orders/${newOrder.id}`
       }
     } catch (error) {
       console.error("Failed to post order", error)
@@ -68,7 +68,7 @@ export default function StepReviewPost() {
         for (const p of state.products) {
           await proovDb.saveOrderProduct({ ...p, order_id: newOrder.id })
         }
-        window.location.href = `/orders/${newOrder.id}/bids`
+        window.location.href = `/orders/${newOrder.id}`
       }
     } catch (error) {
       console.error("Failed to post order", error)

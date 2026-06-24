@@ -3,6 +3,14 @@ import { Node, Edge, Connection, addEdge, applyNodeChanges, applyEdgeChanges, No
 
 export type CanvasItemType = 'product' | 'reference' | 'text' | 'configurable-product' | 'productRoot' | 'layersNode' | 'specsNode' | 'viewNode'
 
+export interface CanvasItem {
+  id: string
+  type?: CanvasItemType
+  templateId?: string
+  url?: string
+  [key: string]: unknown
+}
+
 export const getProductName = (urlOrId: string | undefined | null) => {
   if (!urlOrId) return "Proov Brand System";
   if (urlOrId.includes("baseball_jersey") || urlOrId === "mock_1" || urlOrId === "mock_5") {

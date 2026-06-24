@@ -11,11 +11,11 @@ interface MarketDetailPanelProps {
 }
 
 export default function MarketDetailPanel({ demand, onClose, currentUserId, currentUserRole }: MarketDetailPanelProps) {
-  if (!demand) return null
-
-  const [bidPrice, setBidPrice] = useState<number>(demand.budget_min || 0)
+  const [bidPrice, setBidPrice] = useState<number>(demand?.budget_min || 0)
   const [bidTat, setBidTat] = useState<number>(14)
   const [bidComments, setBidComments] = useState("")
+
+  if (!demand) return null
 
   const handlePlaceBid = async () => {
     if (currentUserRole !== "manufacturer") {

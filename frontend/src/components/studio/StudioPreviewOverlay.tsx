@@ -10,6 +10,7 @@ export default function StudioPreviewOverlay() {
 
   const node = nodes.find(i => i.id === previewItemId)
   if (!node || node.type !== 'product') return null
+  const imageUrl = typeof node.data.url === 'string' ? node.data.url : ''
 
   return (
     <div style={{
@@ -28,7 +29,7 @@ export default function StudioPreviewOverlay() {
       
       {/* Central Product Image */}
       <img 
-        src={node.data.url} 
+        src={imageUrl} 
         alt="Preview" 
         style={{
           width: '80%',

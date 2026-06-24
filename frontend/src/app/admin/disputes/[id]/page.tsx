@@ -7,23 +7,39 @@ import { ArrowLeft, Clock, AlertTriangle, FileText, Download, CheckCircle, Scale
 export default async function ArbitrationWorkspace({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: dispute, error } = await supabase
     .from("disputes")
     .select(`
       *,
       order:orders(id, agreed_price, status, created_at),
-      filer:profiles!disputes_filed_by_fkey(user_type, company_name, full_name)
+      filer:profiles!disputes_filed_by_fkey(user_type, full_name)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error || !dispute) {
     notFound();
   }
+
+  const { data: messages } = await supabase
+    .from("messages")
+    .select("id, content, attachment_urls, message_type, created_at, sender:profiles(full_name)")
+    .eq("order_id", dispute.order_id)
+    .order("created_at", { ascending: true });
+
+  const orderMessages = (messages || []) as Array<{
+    id: string;
+    content: string;
+    attachment_urls: string[] | null;
+    message_type: string;
+    created_at: string;
+    sender: { full_name: string | null } | Array<{ full_name: string | null }> | null;
+  }>;
 
   const isUrgent = dispute.status === "open" && 
     Math.ceil(Math.abs(new Date().getTime() - new Date(dispute.created_at).getTime()) / (1000 * 60 * 60 * 24)) >= 3;
@@ -76,14 +92,12 @@ export default async function ArbitrationWorkspace({
               </div>
               <div>
                 <p className="text-[#64748b] text-xs mb-0.5">Amount at Stake</p>
-                {/* @ts-ignore */}
                 <p className="font-medium text-[#0f1117]">{formatCurrency(dispute.order?.agreed_price || 0)}</p>
               </div>
               <div>
                 <p className="text-[#64748b] text-xs mb-0.5">Filed By</p>
                 <p className="font-medium text-[#0f1117] capitalize">
-                  {/* @ts-ignore */}
-                  {dispute.filer?.company_name || dispute.filer?.full_name} ({dispute.filer?.user_type})
+                  {dispute.filer?.full_name || "Order party"} ({dispute.filer?.user_type})
                 </p>
               </div>
               <div>
@@ -103,7 +117,6 @@ export default async function ArbitrationWorkspace({
               <div className="relative">
                 <div className="absolute -left-5 w-2.5 h-2.5 rounded-full bg-[#10b981] ring-4 ring-white top-1"></div>
                 <p className="text-xs font-medium text-[#0f1117]">Order Created</p>
-                {/* @ts-ignore */}
                 <p className="text-[10px] text-[#64748b]">{new Date(dispute.order?.created_at).toLocaleDateString()}</p>
               </div>
               <div className="relative">
@@ -170,9 +183,17 @@ export default async function ArbitrationWorkspace({
 
             <section>
               <h2 className="text-lg font-bold text-[#0f1117] mb-4">Order Chat History</h2>
-              <div className="bg-white border border-[#e2e8f0] rounded-xl p-6 text-center text-[#64748b]">
-                <p className="text-sm">Read-only chat log integration will be displayed here.</p>
-                <p className="text-xs mt-2">Currently pending chat system completion.</p>
+              <div className="bg-white border border-[#e2e8f0] rounded-xl divide-y divide-[#e2e8f0]">
+                {orderMessages.length ? orderMessages.map((message) => (
+                  <div key={message.id} className="p-4">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="font-semibold text-[#334155]">{message.message_type === "system" ? "System event" : (Array.isArray(message.sender) ? message.sender[0]?.full_name : message.sender?.full_name) || "Order member"}</span>
+                      <span className="text-[#94a3b8]">{new Date(message.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="mt-1.5 text-sm text-[#475569]">{message.content}</p>
+                    {message.attachment_urls?.map((url: string) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#6366f1]"><Download size={12} />{url.split("/").pop()}</a>)}
+                  </div>
+                )) : <p className="p-6 text-center text-sm text-[#64748b]">No order messages have been recorded.</p>}
               </div>
             </section>
 

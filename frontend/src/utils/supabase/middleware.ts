@@ -55,10 +55,10 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  const bypass = request.cookies.get("sb-bypass")?.value === "true";
+  const isDevBypass = request.cookies.get("dev_bypass")?.value === "true";
 
-  if (!user && !bypass) {
-    if (request.nextUrl.pathname.startsWith("/dashboard")) {
+  if (!user && !isDevBypass) {
+    if (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/orders")) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);

@@ -10,6 +10,8 @@ interface BriefBoardHomeProps {
   currentUserId: string
   currentUserRole: string
   onNavigateBack: () => void
+  orders?: Order[]
+  demands?: Demand[]
 }
 
 export default function BriefBoardHome({ currentUserId, currentUserRole, onNavigateBack }: BriefBoardHomeProps) {

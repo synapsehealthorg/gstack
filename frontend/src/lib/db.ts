@@ -2,6 +2,13 @@
 
 import { createClient } from "@/utils/supabase/client"
 
+export type JsonPrimitive = string | number | boolean | null
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
+export type OrderRole = 'sourcing' | 'selling'
+export type PublishVisibility = 'market' | 'private'
+export type TechpackPageType = 'cover' | 'flats' | 'bom' | 'measurements' | 'colorways' | 'packaging'
+export type QualityCoverage = 'full' | 'partial'
+
 export interface User {
   id: string
   name: string
@@ -31,6 +38,7 @@ export interface Demand {
   budget_range: string
   budget_min: number
   turnaround_time: string
+  target_tat?: number
   status: string
   techpack_url: string
   created_at: string
@@ -61,11 +69,35 @@ export interface Bid {
   product_prices?: Array<{ order_product_id: string, unit_price: number, tat_days: number }>
 }
 
+export interface ProductSnapshot {
+  id: string
+  owner_id: string
+  studio_project_id?: string | null
+  name: string
+  category?: string
+  thumbnail_url?: string | null
+  mockup_urls?: string[]
+  layers?: JsonValue[]
+  specs?: Record<string, JsonValue>
+  colorways?: JsonValue[]
+  branding_profile?: Record<string, JsonValue>
+  source?: 'studio' | 'import' | 'template' | 'manual'
+  is_blank_template?: boolean
+  template_id?: string | null
+  builder_state?: Record<string, JsonValue>
+  is_favorite?: boolean
+  archived_at?: string | null
+  status?: 'draft' | 'ready'
+  last_opened_at?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface TechpackPage {
   id: string
   order_product_id: string
-  page_type: 'cover' | 'flats' | 'bom' | 'measurements' | 'colorways' | 'packaging'
-  content: any
+  page_type: TechpackPageType
+  content: Record<string, JsonValue>
   image_urls: string[]
   is_complete: boolean
   version: number
@@ -85,9 +117,92 @@ export interface OrderProduct {
   unit?: string
   target_unit_price?: number
   bid_unit_price?: number
+  product_snapshot_id?: string
+  thumbnail_url?: string
+  is_blank_template?: boolean
+  size_grid?: Record<string, number>
+  roster_enabled?: boolean
+  roster_rows?: Array<Record<string, string>>
+  specs_snapshot?: Record<string, JsonValue>
+  quality_coverage?: QualityCoverage
   sort_order?: number
   techpack_pages?: TechpackPage[]
   created_at?: string
+}
+
+export interface OrderLogistics {
+  tatDays?: number
+  sampleRequired?: boolean
+  sampleTatDays?: number
+  deliveryAddressId?: string
+  deliveryAddressText?: string
+  incoterms?: 'FOB' | 'CIF' | 'EXW' | 'DDP'
+}
+
+export interface OrderCanvasPublishInput {
+  orderName: string
+  role: OrderRole
+  visibility: PublishVisibility
+  splitBidding: boolean
+  products: OrderProduct[]
+  techpackData: Record<string, TechpackPage[]>
+  logistics: OrderLogistics
+  saveAsDraft?: boolean
+  invitedManufacturerIds?: string[]
+}
+
+export interface EscrowLedgerEntry {
+  id: string
+  order_id: string
+  milestone_id?: string | null
+  actor_id?: string | null
+  entry_type: 'manual_funding' | 'milestone_release' | 'refund' | 'adjustment' | 'subscription'
+  amount: number
+  currency: string
+  status: 'pending' | 'recorded' | 'released' | 'failed' | 'cancelled'
+  payment_rail: 'manual' | 'whop' | 'stripe' | 'coinbase' | 'bank_transfer' | 'usdc'
+  reference?: string | null
+  notes?: string | null
+  created_at: string
+}
+
+export interface OrderMilestone {
+  id: string
+  order_id: string
+  milestone_number?: number | null
+  title?: string | null
+  description?: string | null
+  percentage?: number | null
+  amount?: number | null
+  status?: string | null
+  proof_urls?: string[] | null
+  due_date?: string | null
+  completed_at?: string | null
+  created_at: string
+}
+
+export interface MilestoneEvent {
+  id: string
+  milestone_id?: string | null
+  order_id: string
+  actor_id?: string | null
+  event_type: string
+  proof_urls?: string[]
+  notes?: string | null
+  created_at: string
+}
+
+export interface ProovNotification {
+  id: string
+  user_id: string
+  actor_id?: string | null
+  order_id?: string | null
+  inquiry_id?: string | null
+  type: string
+  title: string
+  body?: string | null
+  read_at?: string | null
+  created_at: string
 }
 
 export interface OrderInspiration {
@@ -121,6 +236,7 @@ export interface Order {
   amount: number
   status: string
   tracking_number: string
+  carrier?: string
   shipping_invoice_url: string
   milestone_advance_paid: boolean
   fabric?: string
@@ -147,6 +263,10 @@ export interface Message {
   sender_id: string
   sender_name: string
   content: string
+  attachment_urls?: string[]
+  message_type?: 'human' | 'system'
+  event_type?: string
+  metadata?: Record<string, JsonValue>
   created_at: string
 }
 
@@ -166,13 +286,21 @@ export interface LogEntry {
   timestamp: string
   category: string
   message: string
+  action: string
+  details?: string
 }
+
+export const MOCK_USERS: User[] = []
 
 export const proovDb = {
   getLogs: async (): Promise<LogEntry[]> => {
     const supabase = createClient()
     const { data } = await supabase.from("logs").select("*").order("timestamp", { ascending: false }).limit(50)
-    return data || []
+    return (data || []).map((entry) => ({
+      ...entry,
+      action: entry.message || entry.category,
+      details: entry.category,
+    }))
   },
 
   logDebug: async (category: string, message: string): Promise<void> => {
@@ -232,6 +360,7 @@ export const proovDb = {
       budget_range: i.target_price ? `$${i.target_price} - $${i.max_price}` : "TBD",
       budget_min: i.target_price,
       turnaround_time: `${i.tat_days || 0} days`,
+      target_tat: i.tat_days || 0,
       status: i.status === "active" ? "open" : i.status,
       techpack_url: i.techpack_urls?.[0] || "",
       created_at: i.created_at,
@@ -340,10 +469,18 @@ export const proovDb = {
     }
   },
 
-  getOrders: async (userId: string, role: string): Promise<Order[]> => {
+  getOrders: async (userId?: string, role: string = "buyer"): Promise<Order[]> => {
     const supabase = createClient()
     const field = role === "buyer" ? "buyer_id" : "manufacturer_id"
-    const { data } = await supabase.from("orders").select("*, inquiries(title, quantity, special_notes), profiles!orders_manufacturer_id_fkey(full_name)").eq(field, userId)
+    let query = supabase
+      .from("orders")
+      .select("*, inquiries(title, quantity, special_notes), profiles!orders_manufacturer_id_fkey(full_name)")
+
+    if (userId) {
+      query = query.eq(field, userId)
+    }
+
+    const { data } = await query
     if (!data) return []
     return data.map((o: any) => ({
       id: o.id,
@@ -355,6 +492,7 @@ export const proovDb = {
       amount: o.agreed_price || 0,
       status: o.status,
       tracking_number: o.tracking_number || "",
+      carrier: o.carrier || "",
       shipping_invoice_url: "",
       milestone_advance_paid: o.escrow_status !== "pending",
       quantity: o.inquiries?.quantity || 1,
@@ -381,6 +519,7 @@ export const proovDb = {
       amount: o.agreed_price || 0,
       status: o.status,
       tracking_number: o.tracking_number || "",
+      carrier: o.carrier || "",
       shipping_invoice_url: "",
       milestone_advance_paid: o.escrow_status !== "pending",
       quantity: o.inquiries?.quantity || 1,
@@ -425,10 +564,276 @@ export const proovDb = {
     await proovDb.logDebug("ORDER", `Saving remarks for order ${orderId}`)
   },
 
+  updateOrder: async (orderId: string, updates: Partial<Order>): Promise<void> => {
+    const supabase = createClient()
+    await supabase.from("orders").update({
+      status: updates.status,
+      tracking_number: updates.tracking_number,
+      carrier: updates.carrier,
+      remarks: updates.remarks,
+      escrow_status: updates.escrow_status,
+    }).eq("id", orderId)
+    await proovDb.logDebug("ORDER", `Updating order ${orderId}`)
+  },
+
+  getOrderProducts: async (orderId: string): Promise<OrderProduct[]> => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("order_products")
+      .select("*, techpack_pages(*)")
+      .eq("order_id", orderId)
+      .order("sort_order", { ascending: true })
+    return data || []
+  },
+
+  getProductSnapshots: async (): Promise<ProductSnapshot[]> => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const { data } = await supabase
+      .from("product_snapshots")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("updated_at", { ascending: false })
+
+    return (data || []) as ProductSnapshot[]
+  },
+
+  saveProductSnapshot: async (snapshot: Partial<ProductSnapshot>): Promise<ProductSnapshot | null> => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const { data } = await supabase
+      .from("product_snapshots")
+      .upsert([{
+        ...snapshot,
+        owner_id: snapshot.owner_id || user.id,
+      }])
+      .select()
+      .single()
+
+    return data as ProductSnapshot | null
+  },
+
+  publishOrderCanvas: async (input: OrderCanvasPublishInput): Promise<{ inquiryId: string; orderId?: string } | null> => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const totalQuantity = input.products.reduce((acc, product) => acc + (product.quantity || 0), 0)
+    const orderTotal = input.products.reduce(
+      (acc, product) => acc + ((product.target_unit_price || 0) * (product.quantity || 0)),
+      0
+    )
+    const hasPartialCoverage = input.products.some((product) => product.is_blank_template || product.quality_coverage === 'partial')
+    const firstProduct = input.products[0]
+    const status = input.saveAsDraft ? "draft" : "active"
+
+    const { data: inquiry, error: inquiryError } = await supabase
+      .from("inquiries")
+      .insert([{
+        buyer_id: user.id,
+        title: input.orderName || firstProduct?.name || "Untitled order",
+        description: `${input.products.length} product order created from the Order Canvas.`,
+        product_category: firstProduct?.category || "sportswear",
+        quantity: totalQuantity,
+        target_price: input.products.length === 1 ? firstProduct?.target_unit_price || 0 : 0,
+        max_price: orderTotal,
+        tat_days: input.logistics.tatDays || null,
+        sample_required: input.logistics.sampleRequired || false,
+        sample_tat_days: input.logistics.sampleTatDays || null,
+        incoterms: input.logistics.incoterms || null,
+        destination: input.logistics.deliveryAddressText || null,
+        status,
+        order_type: input.role,
+        visibility: input.visibility,
+        split_bidding: input.splitBidding,
+        logistics: input.logistics as Record<string, JsonValue>,
+        order_total: orderTotal,
+        product_count: input.products.length,
+        quality_coverage_flags: { hasPartialCoverage },
+        published_at: input.saveAsDraft ? null : new Date().toISOString(),
+        private_share_token: input.visibility === "private" ? crypto.randomUUID() : null,
+      }])
+      .select()
+      .single()
+
+    if (inquiryError || !inquiry) {
+      console.error("publishOrderCanvas inquiry error", inquiryError)
+      return null
+    }
+
+    let orderId: string | undefined
+
+    // The Selling path is a direct transaction workflow. Create a valid confirmed
+    // order shell immediately; Sourcing waits for bid acceptance.
+    if (input.role === "selling") {
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert([{
+          inquiry_id: inquiry.id,
+          buyer_id: user.id,
+          manufacturer_id: input.role === "selling" ? user.id : null,
+          agreed_price: orderTotal,
+          tat_days: input.logistics.tatDays || null,
+          status: "confirmed",
+          escrow_status: "pending",
+          order_type: input.role,
+          visibility: input.visibility === "market" ? "exchange" : "private",
+          split_bidding: input.splitBidding,
+          techpack_locked: false,
+          shared_with: input.invitedManufacturerIds || [],
+          title: input.orderName,
+          total_quantity: totalQuantity,
+          order_total: orderTotal,
+        }])
+        .select()
+        .single()
+
+      if (orderError || !order) {
+        console.error("publishOrderCanvas order error", orderError)
+      } else {
+        orderId = order.id
+      }
+    }
+
+    const orderProductRows = input.products.map((product, index) => ({
+      order_id: orderId || null,
+      inquiry_id: inquiry.id,
+      studio_project_id: product.studio_project_id || null,
+      product_snapshot_id: product.product_snapshot_id || null,
+      name: product.name,
+      style_code: product.style_code || null,
+      category: product.category || null,
+      primary_material: product.primary_material || null,
+      quantity: product.quantity || 1,
+      unit: product.unit || "pieces",
+      target_unit_price: product.target_unit_price || 0,
+      sort_order: index,
+      thumbnail_url: product.thumbnail_url || null,
+      is_blank_template: product.is_blank_template || false,
+      size_grid: product.size_grid || {},
+      roster_enabled: product.roster_enabled || false,
+      roster_rows: product.roster_rows || [],
+      specs_snapshot: product.specs_snapshot || {},
+      quality_coverage: product.quality_coverage || (product.is_blank_template ? "partial" : "full"),
+    }))
+
+    const { data: savedProducts, error: productsError } = await supabase
+      .from("order_products")
+      .insert(orderProductRows)
+      .select()
+
+    if (productsError) {
+      console.error("publishOrderCanvas products error", productsError)
+      if (orderId) await supabase.from("orders").delete().eq("id", orderId)
+      await supabase.from("inquiries").delete().eq("id", inquiry.id)
+      return null
+    }
+
+    const techpackRows = (savedProducts || []).flatMap((savedProduct: { id: string }, index: number) => {
+      const localProduct = input.products[index]
+      const pages = input.techpackData[localProduct.id] || []
+      return pages.map((page) => ({
+        order_product_id: savedProduct.id,
+        page_type: page.page_type,
+        content: page.content || {},
+        image_urls: page.image_urls || [],
+        is_complete: page.is_complete || false,
+        version: page.version || 1,
+      }))
+    })
+
+    if (techpackRows.length > 0) {
+      const { error: techpackError } = await supabase.from("techpack_pages").insert(techpackRows)
+      if (techpackError) {
+        console.error("publishOrderCanvas techpack error", techpackError)
+        if (orderId) await supabase.from("orders").delete().eq("id", orderId)
+        await supabase.from("inquiries").delete().eq("id", inquiry.id)
+        return null
+      }
+    }
+
+    if (input.visibility === "private" && input.invitedManufacturerIds?.length) {
+      const { error: invitationError } = await supabase.from("inquiry_invitations").insert(
+        input.invitedManufacturerIds.map((manufacturerId) => ({ inquiry_id: inquiry.id, manufacturer_id: manufacturerId, invited_by: user.id }))
+      )
+      if (invitationError) {
+        console.error("publishOrderCanvas invitations error", invitationError)
+        if (orderId) await supabase.from("orders").delete().eq("id", orderId)
+        await supabase.from("inquiries").delete().eq("id", inquiry.id)
+        return null
+      }
+    }
+
+    await proovDb.logDebug(
+      "ORDER_CANVAS",
+      `${input.saveAsDraft ? "Saved draft" : "Published"} ${input.role} order "${input.orderName}" (${input.products.length} products)`
+    )
+
+    return { inquiryId: inquiry.id, orderId }
+  },
+
+  createBid: async (bid: {
+    demand_id: string
+    manufacturer_id: string
+    price: number
+    tat_days: number
+    comments?: string
+    status?: string
+  }): Promise<void> => {
+    await proovDb.saveBid({
+      id: "",
+      demand_id: bid.demand_id,
+      manufacturer_id: bid.manufacturer_id,
+      manufacturer_name: "",
+      bid_price: bid.price,
+      turnaround_time: String(bid.tat_days),
+      comments: bid.comments || "",
+      status: bid.status || "pending",
+      created_at: new Date().toISOString(),
+    })
+  },
+
   getTransactionsForOrder: async (orderId: string): Promise<Transaction[]> => {
     // Note: We did not define transactions table in the initial SQL schema!
     // Returning empty array for now since Whop handles transactions.
     return []
+  },
+
+  getEscrowLedgerEntries: async (orderId: string): Promise<EscrowLedgerEntry[]> => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("escrow_ledger_entries")
+      .select("*")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false })
+
+    return (data || []) as EscrowLedgerEntry[]
+  },
+
+  getOrderMilestones: async (orderId: string): Promise<OrderMilestone[]> => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("order_milestones")
+      .select("*")
+      .eq("order_id", orderId)
+      .order("milestone_number", { ascending: true })
+
+    return (data || []) as OrderMilestone[]
+  },
+
+  getMilestoneEvents: async (orderId: string): Promise<MilestoneEvent[]> => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("milestone_events")
+      .select("*")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false })
+
+    return (data || []) as MilestoneEvent[]
   },
 
   saveTransaction: async (tx: Transaction): Promise<void> => {
@@ -443,8 +848,12 @@ export const proovDb = {
       id: m.id,
       order_id: m.order_id,
       sender_id: m.sender_id,
-      sender_name: m.profiles?.full_name || "Unknown",
+      sender_name: m.message_type === "system" ? "System event" : m.profiles?.full_name || "Unknown",
       content: m.content,
+      attachment_urls: m.attachment_urls || [],
+      message_type: m.message_type || "human",
+      event_type: m.event_type || undefined,
+      metadata: m.metadata || {},
       created_at: m.created_at
     }))
   },
@@ -460,7 +869,25 @@ export const proovDb = {
 
   createOrder: async (draft: Partial<Order>): Promise<Order | null> => {
     const supabase = createClient()
-    const { data } = await supabase.from("orders").insert([draft]).select().single()
+    const { data } = await supabase.from("orders").insert([{
+      inquiry_id: draft.demand_id,
+      buyer_id: draft.buyer_id,
+      manufacturer_id: draft.manufacturer_id,
+      agreed_price: draft.amount,
+      tat_days: draft.turnaround_time ? parseInt(draft.turnaround_time, 10) || null : null,
+      status: ["confirmed", "sampling", "in_production", "quality_check", "shipped", "delivered", "completed", "disputed"].includes(draft.status || "")
+        ? draft.status
+        : "confirmed",
+      escrow_status: draft.escrow_status || "pending",
+      order_type: draft.order_type || "sourcing",
+      visibility: draft.visibility || "exchange",
+      split_bidding: draft.split_bidding || false,
+      techpack_locked: draft.techpack_locked || false,
+      shared_with: draft.shared_with || [],
+      title: draft.title,
+      total_quantity: draft.quantity || 0,
+      order_total: draft.amount || 0,
+    }]).select().single()
     return data as Order
   },
 

@@ -1,6 +1,15 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Link from "next/link"
+import type { Demand, Order } from "@/lib/db"
+
+interface KanbanBoardViewProps {
+  orders?: Order[]
+  demands?: Demand[]
+  currentUserId?: string
+  currentUserRole?: string
+}
 
 const MOCK_KANBAN = {
   draft: [
@@ -36,10 +45,38 @@ type Card = {
   progress?: number; timeLabel: string; isUrgent?: boolean; isShipping?: boolean
 }
 
+function statusToColumn(status?: string) {
+  if (status === "draft") return "draft"
+  if (["active", "under_review", "confirmed", "sampling"].includes(status || "")) return "design"
+  if (["in_production", "quality_check"].includes(status || "")) return "production"
+  if (status === "shipped") return "shipping"
+  if (["delivered", "completed"].includes(status || "")) return "delivered"
+  if (status === "disputed") return "appeal"
+  return "design"
+}
+
+function progressForStatus(status?: string) {
+  const progress: Record<string, number> = {
+    draft: 25,
+    active: 35,
+    under_review: 45,
+    confirmed: 50,
+    sampling: 58,
+    in_production: 68,
+    quality_check: 78,
+    shipped: 88,
+    delivered: 95,
+    completed: 100,
+    disputed: 72,
+  }
+  return progress[status || ""] || 50
+}
+
 function KCard({ card, accent }: { card: Card; accent: string }) {
   const [hovered, setHovered] = useState(false)
   return (
-    <div
+    <Link
+      href={`/orders/${card.id}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -51,6 +88,8 @@ function KCard({ card, accent }: { card: Card; accent: string }) {
         marginBottom: "6px",
         cursor: "pointer",
         transition: "border-color 0.12s",
+        display: "block",
+        textDecoration: "none",
       }}
     >
       <div style={{ fontSize: "12px", fontWeight: 500, color: "#09090B", lineHeight: 1.3, marginBottom: "5px" }}>
@@ -85,11 +124,11 @@ function KCard({ card, accent }: { card: Card; accent: string }) {
         {card.isUrgent ? "⚠ " : card.isShipping ? "🚛 " : "🕐 "}
         {card.timeLabel}
       </div>
-    </div>
+    </Link>
   )
 }
 
-export default function KanbanBoardView() {
+export default function KanbanBoardView({ orders = [] }: KanbanBoardViewProps) {
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -99,7 +138,24 @@ export default function KanbanBoardView() {
     return () => window.removeEventListener("resize", check)
   }, [])
 
-  const groups = MOCK_KANBAN as Record<string, Card[]>
+  const groups = orders.length > 0
+    ? orders.reduce((acc, order) => {
+        const column = statusToColumn(order.status)
+        acc[column] = acc[column] || []
+        acc[column].push({
+          id: order.id,
+          title: order.title || order.order_number || "Untitled order",
+          factory: order.manufacturer_name || "Unassigned",
+          value: `$${(order.amount || 0).toLocaleString()}`,
+          escrow: order.escrow_status === "pending" ? "Pending" : "Funded",
+          progress: progressForStatus(order.status),
+          timeLabel: order.created_at ? `Updated ${new Date(order.created_at).toLocaleDateString()}` : "Updated recently",
+          isUrgent: order.status === "disputed",
+          isShipping: order.status === "shipped",
+        })
+        return acc
+      }, {} as Record<string, Card[]>)
+    : MOCK_KANBAN as Record<string, Card[]>
 
   return (
     <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px", alignItems: "flex-start", height: "100%" }}>

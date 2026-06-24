@@ -7,9 +7,10 @@ import Image from "next/image";
 export default async function ManufacturerReview({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: manufacturer, error } = await supabase
     .from("manufacturer_profiles")
@@ -17,7 +18,7 @@ export default async function ManufacturerReview({
       *,
       user:id (email, created_at)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error || !manufacturer) {
@@ -26,8 +27,8 @@ export default async function ManufacturerReview({
 
   // Fetch some stats for this manufacturer (bids, orders)
   const [{ count: bidsCount }, { count: ordersCount }] = await Promise.all([
-    supabase.from("bids").select("id", { count: "exact", head: true }).eq("manufacturer_id", params.id),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("manufacturer_id", params.id)
+    supabase.from("bids").select("id", { count: "exact", head: true }).eq("manufacturer_id", id),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("manufacturer_id", id)
   ]);
 
   return (
@@ -65,7 +66,6 @@ export default async function ManufacturerReview({
             <p className="text-[#64748b] text-xs font-semibold uppercase tracking-wider mb-1">Account Created</p>
             <p className="font-medium text-[#0f1117] flex items-center">
               <Calendar size={16} className="mr-2 text-[#9ca3af]" />
-              {/* @ts-ignore */}
               {new Date(manufacturer.user?.created_at || manufacturer.created_at).toLocaleDateString()}
             </p>
           </div>

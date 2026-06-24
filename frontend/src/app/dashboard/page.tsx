@@ -9,6 +9,7 @@ import { solanaSimulator, FASSET_PKR_RATE } from "@/lib/solana"
 import { calculatePriceFloor, generateTechPackDescription, FABRIC_RULES } from "@/lib/techpack"
 import { useStudioStore } from "@/lib/store/studioStore"
 import { createClient } from "@/utils/supabase/client"
+import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar"
 
 // Dynamically import interactive panels to prevent SSR errors
 import dynamic from "next/dynamic"
@@ -22,8 +23,9 @@ const ProductsDashboard = dynamic(() => import("@/components/products/ProductsDa
 const StudioCreateOverlay = dynamic(() => import("@/components/studio/StudioCreateOverlay"), { ssr: false })
 const KanbanBoardView = dynamic(() => import("@/components/orders/KanbanBoardView"), { ssr: false })
 const BriefBoard = dynamic(() => import("@/components/orders/BriefBoard"), { ssr: false })
+const NotificationFlybox = dynamic(() => import("@/components/dashboard/NotificationFlybox"), { ssr: false })
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { clearCanvas } = useStudioStore()
@@ -43,8 +45,10 @@ export default function DashboardPage() {
   
   // UI State
   const [activeTab, setActiveTab] = useState<"my-orders" | "active-orders" | "shared-with-me" | "featured-projects">("my-orders")
+  const [isExpanded, setIsExpanded] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
+  const [isFlyboxOpen, setIsFlyboxOpen] = useState(false)
   const [activeModal, setActiveModal] = useState<string | null>(null)
   const [showTechpackModal, setShowTechpackModal] = useState(false)
   const [techpackInitialAsset, setTechpackInitialAsset] = useState<string | undefined>(undefined)
@@ -85,6 +89,28 @@ export default function DashboardPage() {
   // Ref for file input
   const fileInputRef = useRef<HTMLInputElement>(null)
   const templateFileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const hydrateSession = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, full_name, user_type")
+        .eq("id", user.id)
+        .maybeSingle()
+      if (cancelled) return
+      setCurrentUserId(user.id)
+      setCurrentUserName(profile?.full_name || user.email?.split("@")[0] || "")
+      if (profile?.user_type === "buyer" || profile?.user_type === "manufacturer" || profile?.user_type === "admin") {
+        setCurrentUserRole(profile.user_type)
+      }
+    }
+    void hydrateSession()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     // Load local storage values if browser
@@ -164,6 +190,7 @@ export default function DashboardPage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     document.cookie = "sb-bypass=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+    document.cookie = "dev_bypass=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
     router.push("/login");
   }
 
@@ -186,16 +213,17 @@ export default function DashboardPage() {
           body: formData
         })
         const data = await res.json()
-        if (data.success) {
+        if (res.ok && data.url) {
           setUploadedFile({
-            name: data.fileName,
+            name: data.filename || file.name,
+            url: data.url,
             size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
             uploaded_at: new Date().toISOString()
           })
-          setUploadStatus(`✓ ${data.fileName} uploaded successfully.`)
-          proovDb.logDebug("UPLOAD", `Art asset uploaded: ${data.fileName}`)
+          setUploadStatus(`${data.filename || file.name} uploaded successfully.`)
+          proovDb.logDebug("UPLOAD", `Art asset uploaded: ${data.filename || file.name}`)
         } else {
-          setUploadStatus("Upload failed.")
+          setUploadStatus(data.error || "Upload failed.")
         }
       } catch (err) {
         setUploadStatus("Upload failed.")
@@ -456,150 +484,51 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="app-container">
-      {/* Desktop Sidebar Navigation */}
-      <aside className="sidebar">
-        <div className="brand-section-new">
-          <div className="brand-logo-cube">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-              <path d="M6 3h6a6 6 0 0 1 0 12H9v6H6V3zm3 9h3a3 3 0 1 0 0-6H9v6z" />
-            </svg>
-          </div>
-          <button className="btn-create-order-sidebar" onClick={() => { clearCanvas(); setActivePanel("studio-create") }}>
-            Create New Product
-          </button>
-        </div>
-        
-        <ul className="sidebar-nav-new" id="sidebar-nav">
-          {currentUserRole === "buyer" ? (
-            <>
-              <li className={`nav-item-new ${activePanel === "view-market" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-market") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
-                  Marketplace
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-products" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-products") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                  Products
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-orders" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-orders") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2m8-2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2z"/></svg>
-                  Orders
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "studio-create" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); clearCanvas(); setActivePanel("studio-create"); }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                  Studio
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-community" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-community") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                  Library
-                </a>
-              </li>
-            </>
-          ) : (
-            <>
-              <li className={`nav-item-new ${activePanel === "view-market" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-market") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
-                  Marketplace
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-orders" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-orders") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2m8-2v10a2 2 0 01-2 2h-2a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2z"/></svg>
-                  Orders
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-direct-invoice" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-direct-invoice") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                  Direct Invoice
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-payout-portal" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-payout-portal") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  Payout Portal
-                </a>
-              </li>
-              <li className={`nav-item-new ${activePanel === "view-admin-console" ? "active" : ""}`}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setActivePanel("view-admin-console") }}>
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                  Arbitration Console
-                </a>
-              </li>
-            </>
-          )}
-        </ul>
-        
-
-        {/* Sidebar Promo Card */}
-        {promoVisible && (
-          <div className="sidebar-promo-card" id="sidebar-promo">
-            <button className="close-promo-btn" onClick={() => setPromoVisible(false)}>&times;</button>
-            <img src="/assets/office_hours.png" className="promo-mug-img" alt="Smash Office Hours" width={180} height={120} />
-            <h4>Smash Office Hours</h4>
-            <p>Join our regular live sessions with the team behind Recraft.</p>
-            <button className="btn-save-spot" onClick={() => alert("Spot saved! Join link sent to your registered email.")}>Save your spot</button>
-          </div>
-        )}
-
-        {/* Upgrade Subscription Button */}
-        <button className="btn-upgrade-subscription" onClick={() => setActiveModal("modal-upgrade")}>Upgrade subscription</button>
-
-        {/* Profile Footer */}
-        <div className="sidebar-profile-footer" onClick={(e) => { e.stopPropagation(); setRoleDropdownOpen(!roleDropdownOpen) }}>
-          <div className="profile-avatar-circle" id="profile-avatar">
-            {currentUserName ? currentUserName[0].toUpperCase() : (currentUserRole === "buyer" ? "M" : currentUserRole === "manufacturer" ? "K" : "A")}
-          </div>
-          <div className="profile-info-text">
-            <span className="profile-name-str" id="profile-name">
-              {currentUserName || (currentUserRole === "buyer" ? "Muhammad Faiq Ali" : currentUserRole === "manufacturer" ? "Pakistan Apparel" : "QC Referee")}
-            </span>
-            <span className="profile-sub-str" id="profile-role">
-              {currentUserRole === "buyer" ? "Buyer Mode" : currentUserRole === "manufacturer" ? "Manufacturer Mode" : "Arbitrator Console"}
-            </span>
-          </div>
-          <div className="profile-points-badge">
-            <span>✦ 51</span>
-          </div>
-
-          {/* Role switcher dropdown */}
-          {roleDropdownOpen && (
-            <div className="role-switcher-dropdown active" id="role-dropdown">
-              <button 
-                className={`role-switcher-item`} 
-                onClick={(e) => { e.stopPropagation(); setRoleDropdownOpen(false); setActivePanel("view-payments"); }}
-                style={{ borderBottom: "1px solid var(--border-primary)", borderRadius: "0" }}
-              >
-                Wallet & Billing
-              </button>
-              <button 
-                className={`role-switcher-item`} 
-                onClick={(e) => { e.stopPropagation(); handleLogout() }}
-              >
-                Log Out
-              </button>
-            </div>
-          )}
-        </div>
-      </aside>
+    <div className="flex h-screen w-full bg-app-bg overflow-hidden text-default">
+      <DashboardSidebar
+        activePanel={activePanel}
+        setActivePanel={setActivePanel}
+        currentUserRole={currentUserRole}
+        currentUserName={currentUserName}
+        roleDropdownOpen={roleDropdownOpen}
+        setRoleDropdownOpen={setRoleDropdownOpen}
+        isExpanded={isExpanded}
+        setIsExpanded={setIsExpanded}
+        clearCanvas={clearCanvas}
+        handleLogout={handleLogout}
+      />
 
       {/* Main Content Wrapper */}
-      <main className="main-wrapper">
-        {/* Top Header - Removed per user request */}
-        {/* <header className="main-header">
-           <div className="role-switcher-container">...</div>
-           <div className="header-actions">...</div>
-        </header> */}
+      <div className="flex-1 flex flex-col min-w-0 bg-transparent py-4 pr-4">
+        <main className="flex-1 overflow-auto bg-sidebar-bg rounded-[24px] border border-border-subtle shadow-sm relative">
+        <header className="flex justify-end items-center gap-6 px-8 py-4 bg-app-bg border-b border-border-subtle">
+          {/* Upgrade Button */}
+          <button className="flex items-center gap-2 px-4 py-2 border border-border-subtle rounded-lg bg-sidebar-bg text-default font-semibold text-sm cursor-pointer">
+            <div style={{ width: '22px', height: '22px', backgroundColor: '#FBBF24', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </div>
+            Upgrade
+          </button>
+          
+          {/* Points */}
+          <div className="flex items-center gap-2 font-semibold text-base text-subtle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8l1.5 3h3.5l-2.5 2.5 1 3.5-3.5-2-3.5 2 1-3.5-2.5-2.5h3.5z"></path></svg>
+            185
+          </div>
+
+          {/* Notification Bell */}
+          <button onClick={() => setIsFlyboxOpen(true)} className="relative flex items-center bg-transparent border-none cursor-pointer">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <span style={{ position: 'absolute', top: '0', right: '0', width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '50%' }}></span>
+          </button>
+
+          {/* Avatar */}
+          <div className="w-10 h-10 rounded-full bg-[#0052CC] text-white flex items-center justify-center font-bold text-lg">
+            M
+          </div>
+        </header>
+        
+        <NotificationFlybox isOpen={isFlyboxOpen} onClose={() => setIsFlyboxOpen(false)} />
 
         {/* Conditionally render panels */}
         {activePanel === "studio-create" && (
@@ -610,15 +539,15 @@ export default function DashboardPage() {
 
         {/* View Panel: Buyer Dashboard */}
         {activePanel === "view-buyer-dashboard" && (
-          <section className="view-panel active" style={{ padding: "24px", maxWidth: "1200px" }}>
+          <section className="flex-1 overflow-y-auto p-6 md:p-8 max-w-[1200px] w-full mx-auto">
             {/* Redesigned Orange Banner */}
             {bannerVisible && (
-              <div className="dashboard-banner">
-                <div className="banner-left">
-                  <span className="banner-new-tag">NEW</span>
-                  <h2>Meet Proov V0.1:<br/>Design canvas is here</h2>
-                  <p>design in 3D Build your product zone by zone, see it in 3D, and post a manufacturer-ready techpack in minutes.</p>
-                  <button className="btn-try-canvas" onClick={() => router.push("/studio")}>
+              <div className="relative flex justify-between items-center bg-[#FF5E00] text-white rounded-[24px] p-8 mb-8 overflow-hidden shadow-sm">
+                <div className="flex flex-col gap-4 relative z-10">
+                  <span className="bg-white text-black px-2 py-1 rounded text-xs font-bold w-fit uppercase tracking-wide">NEW</span>
+                  <h2 className="text-3xl font-semibold leading-tight">Meet Proov V0.1:<br/>Design canvas is here</h2>
+                  <p className="text-sm opacity-90 max-w-md">design in 3D Build your product zone by zone, see it in 3D, and post a manufacturer-ready techpack in minutes.</p>
+                  <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg w-fit font-medium hover:bg-zinc-800 transition-colors" onClick={() => router.push("/studio")}>
                     Try Canvas
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -626,27 +555,27 @@ export default function DashboardPage() {
                     </svg>
                   </button>
                 </div>
-                <div className="banner-right">
-                  <button className="close-banner-btn" onClick={() => setBannerVisible(false)}>&times;</button>
-                  <img src="/assets/banner_woman.png" className="banner-photo" alt="Meet Proov" width={240} height={200} />
-                  <span className="version-watermark">V4.1</span>
+                <div className="relative flex items-center justify-end">
+                  <button className="absolute top-0 right-0 -mt-4 -mr-4 text-white opacity-50 hover:opacity-100 text-2xl z-20" onClick={() => setBannerVisible(false)}>&times;</button>
+                  <img src="/assets/banner_woman.png" className="relative z-10 w-64 h-auto object-cover" alt="Meet Proov" />
+                  <span className="absolute bottom-0 right-0 text-white opacity-20 text-xs font-mono font-bold tracking-widest z-10">V4.1</span>
                 </div>
               </div>
             )}
 
             {/* Tabs */}
-            <div className="dashboard-tabs-container">
-              <div className="segment-tabs">
-                <button className={`tab-pill ${activeTab === "my-orders" ? "active" : ""}`} onClick={() => setActiveTab("my-orders")}>My orders</button>
-                <button className={`tab-pill ${activeTab === "active-orders" ? "active" : ""}`} onClick={() => setActiveTab("active-orders")}>Active Orders</button>
-                <button className={`tab-pill ${activeTab === "shared-with-me" ? "active" : ""}`} onClick={() => setActiveTab("shared-with-me")}>Shared with me</button>
-                <button className={`tab-pill ${activeTab === "featured-projects" ? "active" : ""}`} onClick={() => setActiveTab("featured-projects")}>
-                  Featured projects <span className="badge-tab-new">NEW</span>
+            <div className="flex justify-between items-center mb-8 px-2">
+              <div className="flex gap-2">
+                <button className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === "my-orders" ? "bg-selected text-strong" : "text-subtle hover:bg-selected"}`} onClick={() => setActiveTab("my-orders")}>My orders</button>
+                <button className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === "active-orders" ? "bg-selected text-strong" : "text-subtle hover:bg-selected"}`} onClick={() => setActiveTab("active-orders")}>Active Orders</button>
+                <button className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === "shared-with-me" ? "bg-selected text-strong" : "text-subtle hover:bg-selected"}`} onClick={() => setActiveTab("shared-with-me")}>Shared with me</button>
+                <button className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === "featured-projects" ? "bg-selected text-strong" : "text-subtle hover:bg-selected"}`} onClick={() => setActiveTab("featured-projects")}>
+                  Featured projects <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">NEW</span>
                 </button>
               </div>
               
-              <div className="dropdown-last-opened">
-                <button className="btn-last-opened" onClick={() => alert("Recent projects menu")}>
+              <div>
+                <button className="flex items-center gap-2 text-sm font-medium text-subtle hover:text-default transition-colors" onClick={() => alert("Recent projects menu")}>
                   Last opened
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -657,71 +586,71 @@ export default function DashboardPage() {
 
             {/* My Orders Cards Grid */}
             {activeTab === "my-orders" && (
-              <div id="tab-content-my-orders">
-                <div className="project-grid">
+              <div id="tab-content-my-orders" className="px-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                   {/* Create new product card */}
-                  <div className="project-card-container">
-                    <div className="project-card create-new-card" onClick={() => { clearCanvas(); setActivePanel("studio-create") }}>
-                      <div className="create-new-icon">+</div>
-                      <span>Create New Product</span>
+                  <div className="flex flex-col gap-3 group">
+                    <div className="aspect-[4/3] bg-selected border border-border-subtle rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-subtle transition-colors" onClick={() => { clearCanvas(); setActivePanel("studio-create") }}>
+                      <div className="w-10 h-10 rounded-full bg-app-bg flex items-center justify-center text-xl text-subtle shadow-sm group-hover:scale-105 transition-transform">+</div>
+                      <span className="text-sm font-medium text-default">Create New Product</span>
                     </div>
-                    <div className="project-card-info">
-                      <h3>Create New Product</h3>
+                    <div className="px-1">
+                      <h3 className="text-sm font-semibold text-strong truncate">Create New Product</h3>
                     </div>
                   </div>
 
                   {/* Belarus Tshirts */}
-                  <div className="project-card-container">
-                    <div className="project-card" onClick={() => router.push("/studio")}>
-                      <img src="/assets/proj_belarus.png" className="project-preview-img" alt="Belarus Tshirts" width={180} height={130} />
+                  <div className="flex flex-col gap-3 group">
+                    <div className="aspect-[4/3] bg-selected border border-border-subtle rounded-2xl overflow-hidden cursor-pointer hover:border-subtle transition-colors" onClick={() => router.push("/studio")}>
+                      <img src="/assets/proj_belarus.png" className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="Belarus Tshirts" />
                     </div>
-                    <div className="project-card-info">
-                      <h3>Belarus Tshirts</h3>
-                      <span>modified 5 minutes ago</span>
+                    <div className="px-1 flex flex-col">
+                      <h3 className="text-sm font-semibold text-strong truncate">Belarus Tshirts</h3>
+                      <span className="text-[12px] text-subtle">modified 5 minutes ago</span>
                     </div>
                   </div>
 
                   {/* Copy of Meet Recraft V4 */}
-                  <div className="project-card-container">
-                    <div className="project-card" onClick={() => router.push("/studio")}>
-                      <img src="/assets/proj_recraft.png" className="project-preview-img" alt="Copy of Meet Recraft V4" width={180} height={130} />
+                  <div className="flex flex-col gap-3 group">
+                    <div className="aspect-[4/3] bg-selected border border-border-subtle rounded-2xl overflow-hidden cursor-pointer hover:border-subtle transition-colors" onClick={() => router.push("/studio")}>
+                      <img src="/assets/proj_recraft.png" className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="Copy of Meet Recraft V4" />
                     </div>
-                    <div className="project-card-info">
-                      <h3>Copy of Meet Recraft V4</h3>
-                      <span>modified 8 days ago</span>
+                    <div className="px-1 flex flex-col">
+                      <h3 className="text-sm font-semibold text-strong truncate">Copy of Meet Recraft V4</h3>
+                      <span className="text-[12px] text-subtle">modified 8 days ago</span>
                     </div>
                   </div>
 
                   {/* Copy of Icons */}
-                  <div className="project-card-container">
-                    <div className="project-card" onClick={() => router.push("/studio")}>
-                      <img src="/assets/proj_icons.png" className="project-preview-img" alt="Copy of Icons" width={180} height={130} />
+                  <div className="flex flex-col gap-3 group">
+                    <div className="aspect-[4/3] bg-selected border border-border-subtle rounded-2xl overflow-hidden cursor-pointer hover:border-subtle transition-colors" onClick={() => router.push("/studio")}>
+                      <img src="/assets/proj_icons.png" className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="Copy of Icons" />
                     </div>
-                    <div className="project-card-info">
-                      <h3>Copy of Icons</h3>
-                      <span>modified 12 days ago</span>
+                    <div className="px-1 flex flex-col">
+                      <h3 className="text-sm font-semibold text-strong truncate">Copy of Icons</h3>
+                      <span className="text-[12px] text-subtle">modified 12 days ago</span>
                     </div>
                   </div>
 
                   {/* Copy of Logos & Posters */}
-                  <div className="project-card-container">
-                    <div className="project-card" onClick={() => router.push("/studio")}>
-                      <img src="/assets/proj_logos.png" className="project-preview-img" alt="Copy of Logos & Posters" width={180} height={130} />
+                  <div className="flex flex-col gap-3 group">
+                    <div className="aspect-[4/3] bg-selected border border-border-subtle rounded-2xl overflow-hidden cursor-pointer hover:border-subtle transition-colors" onClick={() => router.push("/studio")}>
+                      <img src="/assets/proj_logos.png" className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="Copy of Logos & Posters" />
                     </div>
-                    <div className="project-card-info">
-                      <h3>Copy of Logos & Posters</h3>
-                      <span>modified 12 days ago</span>
+                    <div className="px-1 flex flex-col">
+                      <h3 className="text-sm font-semibold text-strong truncate">Copy of Logos & Posters</h3>
+                      <span className="text-[12px] text-subtle">modified 12 days ago</span>
                     </div>
                   </div>
 
                   {/* Untitled */}
-                  <div className="project-card-container">
-                    <div className="project-card" onClick={() => router.push("/studio")}>
-                      <span className="no-images-text">No images</span>
+                  <div className="flex flex-col gap-3 group">
+                    <div className="aspect-[4/3] bg-selected border border-border-subtle rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-subtle transition-colors" onClick={() => router.push("/studio")}>
+                      <span className="text-sm font-medium text-subtle">No images</span>
                     </div>
-                    <div className="project-card-info">
-                      <h3>Untitled</h3>
-                      <span>modified 12 days ago</span>
+                    <div className="px-1 flex flex-col">
+                      <h3 className="text-sm font-semibold text-strong truncate">Untitled</h3>
+                      <span className="text-[12px] text-subtle">modified 12 days ago</span>
                     </div>
                   </div>
                 </div>
@@ -870,7 +799,7 @@ export default function DashboardPage() {
 
         {/* View Panel: Market */}
         {activePanel === "view-market" && (
-          <MarketBoardHome />
+          <MarketBoardHome currentUserId={currentUserId} currentUserRole={currentUserRole} currentUserName={currentUserName} />
         )}
 
         {/* View Panel: Products */}
@@ -1289,7 +1218,8 @@ export default function DashboardPage() {
             <button className="btn-debug" style={{ borderColor: "var(--danger)", color: "var(--danger)" }} onClick={handleResetDatabase}>Reset Database</button>
           </div>
         </footer>
-      </main>
+        </main>
+      </div>
 
       {showTechpackModal && (
         <CreateTechpackModal 
@@ -1439,4 +1369,12 @@ export default function DashboardPage() {
       )}
     </div>
   )
+}
+
+export default function DashboardPage() {
+  return (
+    <React.Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0D0D0C', color: '#F0EDE8', fontFamily: 'monospace' }}>Loading dashboard...</div>}>
+      <DashboardContent />
+    </React.Suspense>
+  );
 }
