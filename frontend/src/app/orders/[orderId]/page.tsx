@@ -1,11 +1,13 @@
-import OrderWorkspace from "@/components/orders/OrderWorkspace"
-import { proovDb, type Order } from "@/lib/db"
+import { Suspense } from "react";
+import { proovDb, type Order } from "@/lib/db";
+import { requireAppSession } from "@/lib/server/app-session";
+import OrderWorkspaceClient from "@/components/orders/OrderWorkspaceClient";
 
 function fallbackOrder(orderId: string): Order {
   const readable = orderId
     .replace(/^ORD-/i, "Order ")
     .replace(/^DRAFT-/i, "Draft ")
-    .replace(/[-_]/g, " ")
+    .replace(/[-_]/g, " ");
 
   return {
     id: orderId,
@@ -26,27 +28,46 @@ function fallbackOrder(orderId: string): Order {
     created_at: new Date().toISOString(),
     order_number: orderId,
     escrow_status: "pending",
-  }
+  };
 }
 
-export default async function OrderWorkspacePage(props: { params: Promise<{ orderId: string }> }) {
-  const params = await props.params
-  const dbOrder = await proovDb.getOrder(params.orderId)
-  const order = dbOrder || fallbackOrder(params.orderId)
-  const products = dbOrder ? await proovDb.getOrderProducts(order.id) : []
-  const messages = dbOrder ? await proovDb.getMessages(order.id) : []
-  const ledgerEntries = dbOrder ? await proovDb.getEscrowLedgerEntries(order.id) : []
-  const persistedMilestones = dbOrder ? await proovDb.getOrderMilestones(order.id) : []
-  const milestoneEvents = dbOrder ? await proovDb.getMilestoneEvents(order.id) : []
+export default async function OrderDetailPage(
+  props: { params: Promise<{ orderId: string }> }
+) {
+  const [session, { orderId }] = await Promise.all([
+    requireAppSession(),
+    props.params,
+  ]);
+
+  const dbOrder = await proovDb.getOrder(orderId);
+  const order = dbOrder || fallbackOrder(orderId);
+
+  const [products, messages, ledgerEntries, persistedMilestones, milestoneEvents] =
+    await Promise.all([
+      dbOrder ? proovDb.getOrderProducts(order.id) : Promise.resolve([]),
+      dbOrder ? proovDb.getMessages(order.id) : Promise.resolve([]),
+      dbOrder ? proovDb.getEscrowLedgerEntries(order.id) : Promise.resolve([]),
+      dbOrder ? proovDb.getOrderMilestones(order.id) : Promise.resolve([]),
+      dbOrder ? proovDb.getMilestoneEvents(order.id) : Promise.resolve([]),
+    ]);
 
   return (
-    <OrderWorkspace
-      order={order}
-      products={products}
-      messages={messages}
-      ledgerEntries={ledgerEntries}
-      persistedMilestones={persistedMilestones}
-      milestoneEvents={milestoneEvents}
-    />
-  )
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" />
+        </div>
+      }
+    >
+      <OrderWorkspaceClient
+        order={order}
+        session={session}
+        products={products}
+        messages={messages}
+        ledgerEntries={ledgerEntries}
+        persistedMilestones={persistedMilestones}
+        milestoneEvents={milestoneEvents}
+      />
+    </Suspense>
+  );
 }

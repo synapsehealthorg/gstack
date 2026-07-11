@@ -1,69 +1,115 @@
-import React from "react"
-import BriefBoard from "@/components/orders/BriefBoard"
-import KanbanBoardView from "@/components/orders/KanbanBoardView"
-import { proovDb } from "@/lib/db"
-import Link from "next/link"
+import Link from "next/link";
+import { Suspense } from "react";
+import { requireAppSession } from "@/lib/server/app-session";
+import { getPilotOrders } from "@/lib/server/pilot-data";
+import {
+  BriefBoardClient,
+  KanbanBoardClient,
+} from "@/components/orders/OrderBoardsClient";
 
-export default async function OrdersPage(props: { searchParams: Promise<{ view?: string }> }) {
-  const searchParams = await props.searchParams
-  const isListView = searchParams.view === 'list'
-  
-  const orders = await proovDb.getOrders()
-  const demands = await proovDb.getDemands()
-  const currentUserId = "phantom_sports_001"
-  const currentUserRole = "buyer"
+function OrdersBoardSkeleton() {
+  return (
+    <div className="flex gap-4 animate-pulse">
+      {[1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          className="flex-shrink-0 w-64 rounded-2xl border border-slate-200 bg-white p-4"
+        >
+          <div className="h-5 w-24 rounded bg-slate-200 mb-4" />
+          {[1, 2, 3].map((j) => (
+            <div
+              key={j}
+              className="mb-3 rounded-xl border border-slate-100 bg-slate-50 p-3"
+            >
+              <div className="h-4 w-full rounded bg-slate-200 mb-2" />
+              <div className="h-3 w-2/3 rounded bg-slate-200" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const ordersWithProducts = await Promise.all(
-    orders.map(async (order) => {
-      const products = await proovDb.getOrderProducts(order.id)
-      return { ...order, products }
-    })
-  )
+async function OrdersBoard({
+  isListView,
+  session,
+}: {
+  isListView: boolean;
+  session: Awaited<ReturnType<typeof requireAppSession>>;
+}) {
+  const orders = await getPilotOrders(session);
+  return isListView ? (
+    <BriefBoardClient
+      orders={orders}
+      currentUserId={session.userId}
+      currentUserRole={session.role}
+    />
+  ) : (
+    <KanbanBoardClient
+      orders={orders}
+      currentUserId={session.userId}
+      currentUserRole={session.role}
+    />
+  );
+}
+
+export default async function OrdersPage(props: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const [searchParams, session] = await Promise.all([
+    props.searchParams,
+    requireAppSession(),
+  ]);
+  const isListView = searchParams.view === "list";
 
   return (
-    <div style={{ padding: "40px 20px", maxWidth: "1400px", margin: "0 auto", display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
+    <main className="mx-auto flex min-h-screen max-w-[1500px] flex-col bg-[#f8fafc] px-5 py-8">
+      <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: "600", color: "var(--color-text-primary)", margin: "0 0 8px 0" }}>Orders</h1>
-          <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>Manage your sourcing and production pipelines.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {session.role} workspace
+          </p>
+          <h1 className="mt-1 text-3xl font-semibold text-slate-950">Orders</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Persisted sourcing, production, escrow, and dispute activity.
+          </p>
         </div>
-        
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          {/* View Toggle */}
-          <div style={{ display: "flex", backgroundColor: "var(--color-background-secondary)", padding: "4px", borderRadius: "8px" }}>
-            <Link href="/orders?view=kanban" style={{ padding: "6px 12px", borderRadius: "4px", backgroundColor: !isListView ? "var(--color-background-primary)" : "transparent", color: !isListView ? "var(--color-text-primary)" : "var(--color-text-secondary)", textDecoration: "none", fontSize: "13px", fontWeight: 500, boxShadow: !isListView ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-slate-200 bg-white p-1 text-sm">
+            <Link
+              href="/orders?view=kanban"
+              className={`rounded-md px-3 py-1.5 ${
+                !isListView ? "bg-slate-950 text-white" : "text-slate-600"
+              }`}
+            >
               Board
             </Link>
-            <Link href="/orders?view=list" style={{ padding: "6px 12px", borderRadius: "4px", backgroundColor: isListView ? "var(--color-background-primary)" : "transparent", color: isListView ? "var(--color-text-primary)" : "var(--color-text-secondary)", textDecoration: "none", fontSize: "13px", fontWeight: 500, boxShadow: isListView ? "0 1px 2px rgba(0,0,0,0.05)" : "none" }}>
+            <Link
+              href="/orders?view=list"
+              className={`rounded-md px-3 py-1.5 ${
+                isListView ? "bg-slate-950 text-white" : "text-slate-600"
+              }`}
+            >
               List
             </Link>
           </div>
-
-          <Link href="/orders/new" className="btn-primary" style={{ textDecoration: "none" }}>
-            + New Order
+          <Link href="/marketplace" className="market-btn">
+            Marketplace
           </Link>
+          {session.role === "buyer" && (
+            <Link href="/orders/new" className="market-btn-primary">
+              New RFQ
+            </Link>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {isListView ? (
-          <BriefBoard 
-            orders={ordersWithProducts} 
-            demands={demands} 
-            currentUserId={currentUserId} 
-            currentUserRole={currentUserRole} 
-          />
-        ) : (
-          <KanbanBoardView 
-            orders={ordersWithProducts} 
-            demands={demands} 
-            currentUserId={currentUserId} 
-            currentUserRole={currentUserRole} 
-          />
-        )}
-      </div>
-    </div>
-  )
+      <section className="min-h-0 flex-1 overflow-hidden">
+        <Suspense fallback={<OrdersBoardSkeleton />}>
+          <OrdersBoard isListView={isListView} session={session} />
+        </Suspense>
+      </section>
+    </main>
+  );
 }

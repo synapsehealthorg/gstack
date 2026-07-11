@@ -255,6 +255,9 @@ export interface Order {
   techpack_locked?: boolean
   shared_with?: string[]
   products?: OrderProduct[]
+  incoterms?: string
+  destination?: string
+  sample_required?: boolean
 }
 
 export interface Message {

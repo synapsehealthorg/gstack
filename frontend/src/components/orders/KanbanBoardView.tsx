@@ -11,26 +11,6 @@ interface KanbanBoardViewProps {
   currentUserRole?: string
 }
 
-const MOCK_KANBAN = {
-  draft: [
-    { id: "d1", title: "Compression Tights × 800", progress: 60, timeLabel: "60% complete" },
-    { id: "d2", title: "Kit Bags × 400", progress: 25, timeLabel: "25% complete" },
-  ],
-  design: [
-    { id: "g1", title: "Goalkeeper Gloves × 1,200", factory: "Sport Arabia", value: "$13,440", escrow: "Pending", timeLabel: "Updated 1d ago" },
-  ],
-  production: [
-    { id: "p1", title: "Football Jersey Kit × 500", factory: "Ali Sports", value: "$3,675", escrow: "Funded", progress: 45, timeLabel: "M2 of 4 · updated 5h ago" },
-  ],
-  shipping: [
-    { id: "s1", title: "Training Shorts × 300", factory: "RunKit Sports", value: "$1,260", escrow: "Funded", timeLabel: "DHL · 3 days to dest.", isShipping: true },
-  ],
-  delivered: [] as any[],
-  appeal: [
-    { id: "a1", title: "Leather Holdall × 150", factory: "Karachi Leather", value: "$6,750", escrow: "Funded", timeLabel: "Stitching quality dispute", isUrgent: true },
-  ],
-}
-
 const COLUMNS = [
   { id: "draft",      label: "Draft",      subtitle: "Building your techpack", accent: "#888780" },
   { id: "design",     label: "Design",     subtitle: "Specs being finalised",  accent: "#378ADD" },
@@ -155,7 +135,7 @@ export default function KanbanBoardView({ orders = [] }: KanbanBoardViewProps) {
         })
         return acc
       }, {} as Record<string, Card[]>)
-    : MOCK_KANBAN as Record<string, Card[]>
+    : {} as Record<string, Card[]>
 
   return (
     <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "8px", alignItems: "flex-start", height: "100%" }}>

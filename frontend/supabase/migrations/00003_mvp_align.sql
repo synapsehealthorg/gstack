@@ -1,4 +1,4 @@
--- 00002_mvp_align.sql
+-- 00003_mvp_align.sql
 
 -- 1. Manufacturer Profiles Alignment
 -- Remove deprecated quota fields since bidding is free for verified users

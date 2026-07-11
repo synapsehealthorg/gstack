@@ -2,7 +2,7 @@
 
 This is the open-source client-side application for **proov** (proov.to / proov.io)—a B2B reverse-auction marketplace and direct-billing escrow platform designed to resolve payment trust, quality disputes, and cross-border payout red tape between global buyers and custom manufacturers.
 
-The application is built as a highly responsive, zero-dependency light-themed Single Page Application (SPA). It features an inDrive-style buyer/manufacturer role switcher, an algorithmic bidding quota pass generator, rules-based custom product cost floor checks, and simulated Whop checkout, Solana USDC wallets, and Fasset PKR bank off-ramps.
+The production application is a Next.js 16 frontend backed by Supabase Auth, Postgres, Row Level Security, Storage, and Realtime. The pilot transaction spine supports authenticated RFQs, manufacturer bids, atomic bid acceptance, order milestones, manual escrow, notifications, and disputes.
 
 ---
 
@@ -10,60 +10,55 @@ The application is built as a highly responsive, zero-dependency light-themed Si
 
 To run the application or execute the automated test suites, you will need:
 *   A modern web browser (Chrome, Safari, Firefox, Edge).
-*   [Node.js](https://nodejs.org/) (v18.0.0 or higher) to execute unit assertions.
+*   [Node.js](https://nodejs.org/) (v20.9.0 or higher). The pinned version is in `.nvmrc`.
 
 ---
 
 ## Getting Started
 
-### 1. Run the Web Interface
-Since proov is a client-side SPA, you can open `index.html` directly in your browser. For optimal asset and routing performance, we recommend running a simple local development server:
+### 1. Configure and run the application
 
 ```bash
-# Using Python 3
-python3 -m http.server 8000
-
-# Using Node.js npx
-npx serve .
+cp frontend/.env.example frontend/.env.local
+# Fill NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+npm install
+npm install --prefix frontend
+npm run dev
 ```
-Open [http://localhost:8000](http://localhost:8000) in your browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 2. Dual-Mode Database Configuration (`db.js`)
-By default, proov stores all demands, bids, orders, and logs in `localStorage` inside a fully functional, multiplayer-ready Firestore Simulator.
+### 2. Apply the database schema
 
-To connect the application to a live, synchronized Google Cloud Firestore instance, add your project credentials to the config block in `db.js`:
+Apply `frontend/supabase/migrations` in filename order to an isolated Supabase project before starting the app. Migration versions are unique and the final migration installs the role-checked pilot lifecycle and admin-only manual escrow commands.
 
-```javascript
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "SENDER_ID",
-  appId: "APP_ID"
-};
+```bash
+npm run test --prefix frontend
+npm run typecheck --prefix frontend
+npm run lint --prefix frontend -- --no-fix
+npm run build
 ```
-If these credentials are left blank or offline, the app automatically and gracefully falls back to the local simulator mode.
+
+Missing Supabase variables fail fast. Authenticated writes never fall back to browser-local demo data.
 
 ---
 
 ## Running Tests
 
-We run Node.js unit assertions to test the state machine transitions, fee allocations, escrow releases, and off-ramp rates.
+The default suite checks product handoff, marketplace behavior, migration ordering, authorization contracts, milestone initialization, and manual escrow idempotency.
 
-Execute the test suite with:
+Execute all contract suites with:
 
 ```bash
-node test.js
+npm test --prefix frontend
 ```
 
 ### What is tested:
-1.  **Seed Verification:** Validates database structure and initial YC-based case study profiles (Phantom Sports, Pakistan Apparel).
-2.  **Algorithmic Quota Limits:** Verifies the dynamic bidding pass allocation curve ($3 for 8 bids up to 16 bids, scaling with 24-hour daily demand flow).
-3.  **Whop webhook processing:** Validates that credit card checkouts trigger successful webhook callbacks and shift orders to "Held in Escrow".
-4.  **Premium Milestone Rule:** Asserts that premium factories immediately receive a 50% milestone advance payment in their Solana USDC wallet, while standard manufacturers are held at 100% until delivery.
-5.  **Escrow Settling:** Validates delivery confirmation and final fund payouts over Solana.
-6.  **Fasset Off-ramping:** Tests Fasset USDC -> PKR bank rate calculations (1 USDC = 278.55 PKR) and clears active wallet balances.
+1. Product templates and Product → Order handoff contracts.
+2. Marketplace filtering, ownership boundaries, split bids, and atomic acceptance schema.
+3. Unique, ordered Supabase migrations.
+4. Role-checked order transitions and removal of broad order writes.
+5. Admin-only, idempotent manual escrow with notifications and audit records.
+6. A Playwright pilot flow across buyer, manufacturer, and admin accounts via `npm run test:e2e --prefix frontend`.
 
 ---
 
@@ -75,7 +70,7 @@ We welcome contributions to proov. To keep quality high and PR reviews fast, we 
 Try to limit your changes to under 200 lines of code. Large, sprawling pull requests will be closed immediately.
 
 ### 2. Run tests locally
-Never submit a PR that fails the unit suite. Run `node test.js` before pushing your branch and attach the terminal output to your description.
+Never submit a PR that fails `npm test`, `npm run typecheck`, `npm run lint -- --no-fix`, or `npm run build` in `frontend`.
 
 ### 3. Add video walkthroughs
 If you are changing UI layouts, forms, or role-toggle menus, record a short video walkthrough demonstrating your changes and include it in your pull request.

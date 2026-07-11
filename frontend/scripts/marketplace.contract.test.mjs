@@ -51,12 +51,12 @@ test("split bids calculate line totals, weighted unit price, and longest TAT", (
 })
 
 test("migration defines private access, audited moderation, and atomic acceptance", () => {
-  const sql = readFileSync(new URL("../supabase/migrations/00007_marketplace_lifecycle.sql", import.meta.url), "utf8")
+  const sql = readFileSync(new URL("../supabase/migrations/00008_marketplace_lifecycle.sql", import.meta.url), "utf8")
   for (const contract of ["marketplace_favorites", "inquiry_invitations", "inquiry_messages", "Marketplace inquiry visibility", "accept_marketplace_bid", "product_prices", "bid_unit_price", "Admins manage disputes", "Admins manage manufacturer profiles", "notifications"]) assert.match(sql, new RegExp(contract))
 })
 
 test("migration secures public profiles, uploads, signup, deletion, and bid decisions", () => {
-  const sql = readFileSync(new URL("../supabase/migrations/00007_marketplace_lifecycle.sql", import.meta.url), "utf8")
+  const sql = readFileSync(new URL("../supabase/migrations/00008_marketplace_lifecycle.sql", import.meta.url), "utf8")
   for (const contract of [
     "Public reads verified manufacturer profiles",
     "Authenticated users upload marketplace files",

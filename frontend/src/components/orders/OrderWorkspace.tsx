@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import type React from "react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   AlertCircle,
   ArrowLeft,
@@ -32,7 +33,9 @@ import {
   Eye,
   X,
 } from "lucide-react"
-import type { EscrowLedgerEntry, Message, MilestoneEvent, Order, OrderMilestone, OrderProduct, TechpackPage } from "@/lib/db"
+import type { EscrowLedgerEntry, Message, MilestoneEvent, Order, OrderMilestone, OrderProduct, ProovNotification, TechpackPage } from "@/lib/db"
+import type { AppSession, EscrowEntryType, OrderLifecycleAction } from "@/lib/pilot-contracts"
+import { recordManualEscrow, transitionOrder } from "@/lib/pilot-lifecycle"
 import { createClient } from "@/utils/supabase/client"
 
 type Attention = {
@@ -103,7 +106,7 @@ function contractLabel(order: Order) {
   return "Review"
 }
 
-function getAttention(order: Order): Attention {
+function getAttention(order: Order, qcApproved = false): Attention {
   if (order.status === "disputed") {
     return {
       title: "Resolve dispute intake",
@@ -127,6 +130,9 @@ function getAttention(order: Order): Attention {
   }
 
   if (order.status === "quality_check") {
+    if (qcApproved) {
+      return { title: "Ship approved production", detail: "QC is approved. Add carrier and tracking to move the order into shipping.", owner: "Manufacturer", action: "Add tracking", tone: "shipping", icon: Truck }
+    }
     return {
       title: "Review QC proof",
       detail: "The manufacturer uploaded QC evidence. Approve it or request a correction before M2 releases.",
@@ -148,6 +154,10 @@ function getAttention(order: Order): Attention {
     }
   }
 
+  if (order.status === "confirmed") {
+    return { title: "Start production", detail: "Escrow is recorded. Confirm materials and begin production.", owner: "Manufacturer", action: "Confirm production start", tone: "money", icon: CircleDollarSign }
+  }
+
   if (order.status === "sampling") {
     return {
       title: "Approve physical sample",
@@ -159,12 +169,16 @@ function getAttention(order: Order): Attention {
     }
   }
 
+  if (order.status === "in_production") {
+    return { title: "Submit quality evidence", detail: "Attach QC evidence, then submit it for buyer review.", owner: "Manufacturer", action: "QC proof submitted", tone: "review", icon: ClipboardCheck }
+  }
+
   if (order.status === "shipped") {
     return {
-      title: "Track shipment",
-      detail: "Tracking is active. Keep delivery evidence and customs notes in the order conversation.",
+      title: "Mark shipment delivered",
+      detail: "Tracking is active. Mark delivery when the carrier confirms arrival.",
       owner: "Manufacturer",
-      action: "Update tracking",
+      action: "Mark delivered",
       tone: "shipping",
       icon: Truck,
     }
@@ -256,31 +270,16 @@ function productFallback(order: Order): OrderProduct[] {
     {
       id: `${order.id}-product`,
       order_id: order.id,
-      name: order.title || "Team Jersey Set",
+      name: order.title || "Order product",
       category: "Sportswear",
-      primary_material: order.fabric || "Polyester performance mesh",
-      quantity: order.quantity || 500,
+      primary_material: order.fabric || "Not specified",
+      quantity: order.quantity || 0,
       unit: "pieces",
-      target_unit_price: order.quantity ? Math.round((order.amount || 0) / Math.max(order.quantity, 1)) : 17,
+      target_unit_price: order.quantity ? Math.round((order.amount || 0) / Math.max(order.quantity, 1)) : 0,
       sort_order: 0,
       quality_coverage: "full",
-      style_code: "JSY-01",
-      techpack_pages: [
-        "cover",
-        "flats",
-        "bom",
-        "measurements",
-        "colorways",
-        "packaging",
-      ].map((pageType, index) => ({
-        id: `${order.id}-${pageType}`,
-        order_product_id: `${order.id}-product`,
-        page_type: pageType as TechpackPage["page_type"],
-        content: {},
-        image_urls: [],
-        is_complete: index < 4,
-        version: 1,
-      })),
+      style_code: "",
+      techpack_pages: [],
     },
   ]
 }
@@ -332,46 +331,7 @@ function conversationFromMessages(order: Order, messages: Message[]): Conversati
   })
 
   if (hydrated.length === 0) {
-    return [
-      {
-        id: "buyer-note-1",
-        author: "buyer",
-        title: "John Khan",
-        body: "Please confirm if you can use 180 GSM cool dry fabric.",
-        time: "10:30 AM",
-      },
-      {
-        id: "manufacturer-note-1",
-        author: "manufacturer",
-        title: order.manufacturer_name || "Prime Athletic",
-        body: "Yes, we can do 180 GSM cool dry. Attaching fabric details.",
-        time: "10:32 AM",
-        attachment: "cool-dry-180gsm.pdf",
-      },
-      systemMilestoneEvent(order),
-      {
-        id: "manufacturer-note-2",
-        author: "manufacturer",
-        title: order.manufacturer_name || "Prime Athletic",
-        body: "Production lead time: 30 days after sample approval.",
-        time: "11:10 AM",
-      },
-      {
-        id: "buyer-note-2",
-        author: "buyer",
-        title: "John Khan",
-        body: "Looks good. Please share sample timeline.",
-        time: "11:20 AM",
-      },
-      {
-        id: "manufacturer-note-3",
-        author: "manufacturer",
-        title: order.manufacturer_name || "Prime Athletic",
-        body: "Sample will be ready in 5 days.",
-        time: "11:22 AM",
-      },
-      assistantEventFor(order),
-    ]
+    return [assistantEventFor(order), systemMilestoneEvent(order)]
   }
 
   const hasSystem = hydrated.some((event) => event.author === "system")
@@ -382,42 +342,34 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-function orderAfterAction(order: Order, label: string): Order {
+function lifecycleActionForLabel(label: string): OrderLifecycleAction | null {
   const normalized = label.toLowerCase()
+  if (normalized.includes("dispute")) return "file_dispute"
+  if (normalized.includes("approve sample")) return "approve_sample"
+  if (normalized.includes("production start") || normalized.includes("start production")) return "start_production"
+  if (normalized.includes("qc proof") || normalized.includes("submit qc")) return "submit_qc"
+  if (normalized.includes("review qc") || normalized.includes("approve qc")) return "approve_qc"
+  if (normalized.includes("add tracking") || normalized.includes("mark shipped")) return "mark_shipped"
+  if (normalized.includes("mark delivered")) return "mark_delivered"
+  if (normalized.includes("confirm delivery") || normalized.includes("confirm receipt")) return "confirm_delivery"
+  return null
+}
 
-  if (normalized.includes("dispute")) {
-    return { ...order, status: "disputed" }
-  }
-
-  if (normalized.includes("cancel")) {
-    return { ...order, status: "disputed" }
-  }
-
-  if (normalized.includes("accept") && normalized.includes("fund")) {
-    return { ...order, escrow_status: "funded", status: "sampling", techpack_locked: true }
-  }
-
-  if (normalized.includes("escrow") || normalized.includes("funding")) {
-    return { ...order, escrow_status: "funded", status: order.status === "confirmed" ? "sampling" : order.status }
-  }
-
-  if (normalized.includes("approve sample")) {
-    return { ...order, status: "in_production" }
-  }
-
-  if (normalized.includes("review qc")) {
-    return { ...order, status: "shipped" }
-  }
-
-  if (normalized.includes("confirm delivery") || normalized.includes("confirm receipt")) {
-    return { ...order, status: "completed", escrow_status: "released" }
-  }
-
-  if (normalized.includes("approve") || normalized.includes("lock")) {
-    return { ...order, techpack_locked: true }
-  }
-
+function optimisticOrder(order: Order, action: OrderLifecycleAction): Order {
+  if (action === "file_dispute") return { ...order, status: "disputed" }
+  if (action === "approve_sample" || action === "start_production" || action === "request_qc_changes") return { ...order, status: "in_production" }
+  if (action === "submit_qc") return { ...order, status: "quality_check" }
+  if (action === "mark_shipped") return { ...order, status: "shipped" }
+  if (action === "mark_delivered") return { ...order, status: "delivered" }
+  if (action === "confirm_delivery") return { ...order, status: "completed" }
   return order
+}
+
+function roleCanPerform(role: AppSession["role"], action: OrderLifecycleAction | null) {
+  if (!action) return false
+  if (action === "file_dispute") return role === "buyer" || role === "manufacturer"
+  if (["approve_sample", "approve_qc", "request_qc_changes", "confirm_delivery"].includes(action)) return role === "buyer"
+  return role === "manufacturer"
 }
 
 function Accordion({
@@ -469,19 +421,24 @@ function Accordion({
 
 export default function OrderWorkspace({
   order,
+  session,
   products,
   messages = [],
   ledgerEntries = [],
   persistedMilestones = [],
   milestoneEvents = [],
+  notifications = [],
 }: {
   order: Order
+  session: AppSession
   products: OrderProduct[]
   messages?: Message[]
   ledgerEntries?: EscrowLedgerEntry[]
   persistedMilestones?: OrderMilestone[]
   milestoneEvents?: MilestoneEvent[]
+  notifications?: ProovNotification[]
 }) {
+  const router = useRouter()
   const [workspaceOrder, setWorkspaceOrder] = useState(order)
   const workspaceProducts = products.length > 0 ? products : productFallback(order)
   const [activeProductId, setActiveProductId] = useState(workspaceProducts[0]?.id)
@@ -489,11 +446,19 @@ export default function OrderWorkspace({
   const [isSavingEvent, setIsSavingEvent] = useState(false)
   const [composerValue, setComposerValue] = useState("")
   const [pendingAttachment, setPendingAttachment] = useState<{ name: string; url: string } | null>(null)
+  const [escrowEntryType, setEscrowEntryType] = useState<EscrowEntryType>("manual_funding")
+  const [escrowAmount, setEscrowAmount] = useState(String(order.amount || ""))
+  const [escrowReference, setEscrowReference] = useState("")
+  const [escrowNotes, setEscrowNotes] = useState("")
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
   const [conversation, setConversation] = useState<ConversationEvent[]>(() => conversationFromMessages(order, messages))
-  const attention = getAttention(workspaceOrder)
-  const AttentionIcon = attention.icon
   const milestones = milestonesFromRows(workspaceOrder, persistedMilestones)
+  const qcApproved = persistedMilestones.some((milestone) => milestone.milestone_number === 2 && milestone.status === "completed")
+  const attention = getAttention(workspaceOrder, qcApproved)
+  const attentionLifecycleAction = lifecycleActionForLabel(attention.action)
+  const canPerformAttention = roleCanPerform(session.role, attentionLifecycleAction)
+  const AttentionIcon = attention.icon
   const units = workspaceProducts.reduce((sum, product) => sum + (product.quantity || 0), 0)
   const activeProduct = workspaceProducts.find((product) => product.id === activeProductId) || workspaceProducts[0]
   const activePages = activeProduct.techpack_pages || []
@@ -511,6 +476,8 @@ export default function OrderWorkspace({
   ]
   const sectionPages = activePages.length > 0 ? activePages : productFallback(order)[0].techpack_pages || []
   const canPersist = isUuid(order.id)
+
+  useEffect(() => setWorkspaceOrder(order), [order])
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     summary: true,
@@ -555,50 +522,55 @@ export default function OrderWorkspace({
     return !error
   }
 
-  const persistOrderState = async (nextOrder: Order) => {
-    if (!canPersist) return false
+  const confirmAction = async (label: string) => {
+    const action = lifecycleActionForLabel(label)
+    if (!action) { setNotice("This control is informational. Use the relevant lifecycle action below."); return }
+    if (!canPersist) { setNotice("Only persisted orders can be changed."); return }
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return false
+    let notes: string | undefined
+    let carrier: string | undefined
+    let trackingNumber: string | undefined
+    const proofUrls = pendingAttachment ? [pendingAttachment.url] : []
+    if (action === "file_dispute") {
+      notes = window.prompt("Describe the dispute and the outcome you need")?.trim()
+      if (!notes) return
+    }
+    if (action === "submit_qc" && proofUrls.length === 0) {
+      setNotice("Attach QC evidence in the conversation composer before submitting QC.")
+      return
+    }
+    if (action === "mark_shipped") {
+      trackingNumber = window.prompt("Tracking number")?.trim()
+      if (!trackingNumber) return
+      carrier = window.prompt("Carrier")?.trim() || undefined
+    }
 
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        status: nextOrder.status,
-        escrow_status: nextOrder.escrow_status,
-        techpack_locked: nextOrder.techpack_locked,
-      })
-      .eq("id", nextOrder.id)
-
-    return !error
+    setNotice("Saving lifecycle event...")
+    setIsSavingEvent(true)
+    const result = await transitionOrder({ orderId: order.id, action, notes, proofUrls, carrier, trackingNumber })
+    setIsSavingEvent(false)
+    if (!result.ok) { setNotice(result.message); return }
+    setWorkspaceOrder((current) => optimisticOrder(current, action))
+    setPendingAttachment(null)
+    setNotice("Saved.")
+    router.refresh()
   }
 
-  const confirmAction = async (label: string) => {
-    const message = `${label} recorded.`
-    const event: ConversationEvent = {
-      id: `${Date.now()}-${label}`,
-      author: "system",
-      title: "System event",
-      body: message,
-      time: "Just now",
+  const submitEscrowEntry = async () => {
+    const amount = Number(escrowAmount)
+    if (!Number.isFinite(amount) || amount <= 0 || !escrowReference.trim()) {
+      setNotice("Enter a positive amount and a payment reference.")
+      return
     }
-    const nextOrder = orderAfterAction(workspaceOrder, label)
-
-    setWorkspaceOrder(nextOrder)
-    setConversation((current) => [...current, event])
-    setNotice(canPersist ? "Saving event..." : message)
     setIsSavingEvent(true)
-    const [eventPersisted, orderPersisted] = await Promise.all([
-      persistConversationEvent(event, "system", "workspace_action"),
-      persistOrderState(nextOrder),
-    ])
+    setNotice("Recording manual escrow entry...")
+    const result = await recordManualEscrow({ orderId: order.id, entryType: escrowEntryType, amount, currency: "USD", reference: escrowReference.trim(), notes: escrowNotes.trim() || undefined })
     setIsSavingEvent(false)
-    setNotice(
-      eventPersisted || orderPersisted
-        ? "Saved."
-        : `${message} ${canPersist ? "Connection issues." : "Demo orders stay local."}`
-    )
+    if (!result.ok) { setNotice(result.message); return }
+    setEscrowReference("")
+    setEscrowNotes("")
+    setNotice("Escrow entry recorded.")
+    router.refresh()
   }
 
   const sendMessage = async () => {
@@ -607,8 +579,8 @@ export default function OrderWorkspace({
 
     const event: ConversationEvent = {
       id: `${Date.now()}-buyer`,
-      author: "buyer",
-      title: "John Khan",
+      author: session.role === "manufacturer" ? "manufacturer" : "buyer",
+      title: session.displayName,
       body: trimmed || `Attached ${pendingAttachment?.name}`,
       time: "Just now",
       attachment: pendingAttachment?.url,
@@ -695,10 +667,11 @@ export default function OrderWorkspace({
 
           <div className="flex items-center gap-5">
             <button className="text-zinc-500 hover:text-zinc-800 transition"><Search size={19} /></button>
-            <button className="text-zinc-500 hover:text-zinc-800 transition relative">
+            <button type="button" onClick={() => setNotificationsOpen((open) => !open)} className="text-zinc-500 hover:text-zinc-800 transition relative" aria-label="Notifications">
               <Bell size={19} />
-              <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-[#6E56CF] text-[9px] font-bold text-white flex items-center justify-center">3</span>
+              {notifications.some((item) => !item.read_at) && <span className="absolute -top-1 -right-1 min-w-3.5 rounded-full bg-[#6E56CF] px-1 text-[9px] font-bold text-white">{notifications.filter((item) => !item.read_at).length}</span>}
             </button>
+            {notificationsOpen && <div className="absolute right-28 top-12 z-[70] w-80 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl"><div className="border-b border-zinc-100 px-4 py-3 text-xs font-semibold">Notifications</div><div className="max-h-80 overflow-y-auto">{notifications.length ? notifications.map((item) => <div key={item.id} className="border-b border-zinc-100 px-4 py-3 last:border-0"><p className="text-xs font-semibold text-zinc-800">{item.title}</p>{item.body && <p className="mt-1 text-[11px] text-zinc-500">{item.body}</p>}</div>) : <p className="px-4 py-8 text-center text-xs text-zinc-400">No notifications yet.</p>}</div></div>}
             <button className="text-zinc-500 hover:text-zinc-800 transition"><MessageCircle size={19} /></button>
             <div className="h-6 w-px bg-zinc-200" />
             <div className="flex items-center gap-2.5">
@@ -706,8 +679,8 @@ export default function OrderWorkspace({
                 JK
               </div>
               <div className="hidden text-left md:block">
-                <p className="text-xs font-semibold text-zinc-900">John Khan</p>
-                <p className="text-[10px] text-zinc-500">Goal Sports Co.</p>
+                <p className="text-xs font-semibold text-zinc-900">{session.displayName}</p>
+                <p className="text-[10px] capitalize text-zinc-500">{session.role}</p>
               </div>
             </div>
           </div>
@@ -726,10 +699,10 @@ export default function OrderWorkspace({
             </div>
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-500">
               <span className="font-semibold text-zinc-700">Buyer</span>
-              <span>Goal Sports Co.</span>
+              <span>{workspaceOrder.buyer_id === session.userId ? session.displayName : "Buyer"}</span>
               <span className="text-zinc-300">→</span>
               <span className="font-semibold text-zinc-700">Manufacturer</span>
-              <span>{workspaceOrder.manufacturer_name || "Prime Athletic Manufacturing"}</span>
+              <span>{workspaceOrder.manufacturer_name || "Manufacturer"}</span>
             </div>
           </div>
 
@@ -744,14 +717,15 @@ export default function OrderWorkspace({
             </div>
             <div className="flex flex-col text-right mr-4 hidden sm:block">
               <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-400">Target Delivery</span>
-              <span className="text-base font-bold text-zinc-900">{workspaceOrder.turnaround_time || "15 Aug 2024"}</span>
+              <span className="text-base font-bold text-zinc-900">{workspaceOrder.turnaround_time || "Not set"}</span>
             </div>
             <button
               type="button"
+              disabled={!canPerformAttention}
               onClick={() => confirmAction(attention.action)}
-              className="rounded-lg bg-[#6E56CF] px-4.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5B3CC4] focus:outline-none focus:ring-2 focus:ring-[#6E56CF]/50"
+              className="rounded-lg bg-[#6E56CF] px-4.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5B3CC4] focus:outline-none focus:ring-2 focus:ring-[#6E56CF]/50 disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
-              {attention.action === "Record escrow funding" ? "Fund Escrow" : attention.action === "Confirm production start" ? "Start Production" : attention.action}
+              {attention.action === "Record escrow funding" ? (session.role === "admin" ? "Record below" : "Awaiting admin") : canPerformAttention ? attention.action : `Waiting on ${attention.owner}`}
             </button>
             <button
               type="button"
@@ -901,10 +875,11 @@ export default function OrderWorkspace({
                 )}
                 <button
                   type="button"
+                  disabled={!canPerformAttention}
                   onClick={() => confirmAction(attention.action)}
-                  className="rounded-lg bg-[#6E56CF] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#5B3CC4]"
+                  className="rounded-lg bg-[#6E56CF] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#5B3CC4] disabled:cursor-not-allowed disabled:bg-zinc-300"
                 >
-                  {attention.action === "Record escrow funding" ? "Fund Escrow" : attention.action}
+                  {attention.action === "Record escrow funding" ? (session.role === "admin" ? "Record below" : "Awaiting admin") : canPerformAttention ? attention.action : "Waiting on counterparty"}
                 </button>
               </div>
             </div>
@@ -928,24 +903,19 @@ export default function OrderWorkspace({
                   </div>
                   <div className="flex justify-between border-b border-zinc-100 pb-2">
                     <span className="text-zinc-400 text-xs">Incoterms</span>
-                    <span className="font-semibold text-zinc-800 text-xs">FOB Sialkot</span>
+                    <span className="font-semibold text-zinc-800 text-xs">{workspaceOrder.incoterms || "Not specified"}</span>
                   </div>
                   <div className="flex justify-between border-b border-zinc-100 pb-2">
                     <span className="text-zinc-400 text-xs">TAT</span>
-                    <span className="font-semibold text-zinc-800 text-xs">{workspaceOrder.turnaround_time || "60 days"}</span>
+                    <span className="font-semibold text-zinc-800 text-xs">{workspaceOrder.turnaround_time || "Not specified"}</span>
                   </div>
                   <div className="flex justify-between border-b border-zinc-100 pb-2">
                     <span className="text-zinc-400 text-xs">Sample required</span>
-                    <span className="font-semibold text-zinc-800 text-xs">Yes</span>
+                    <span className="font-semibold text-zinc-800 text-xs">{workspaceOrder.sample_required ? "Yes" : "No"}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-zinc-400 text-xs">Delivery address</span>
-                    <span className="font-medium text-zinc-700 text-xs leading-relaxed">
-                      Goal Sports Co.<br />
-                      1287 Warehouse Ave<br />
-                      Los Angeles, CA 90021<br />
-                      United States
-                    </span>
+                    <span className="font-medium text-zinc-700 text-xs leading-relaxed">{workspaceOrder.destination || "Recorded in the locked order documents."}</span>
                   </div>
                 </div>
 
@@ -1035,7 +1005,7 @@ export default function OrderWorkspace({
             <Accordion
               id="pricing"
               title="Pricing & Terms"
-              subtitle={`${formatMoney(workspaceOrder.amount)} USD · FOB Sialkot`}
+              subtitle={`${formatMoney(workspaceOrder.amount)} USD · ${workspaceOrder.incoterms || "Terms pending"}`}
               expanded={expandedSections.pricing}
               onToggle={() => toggleSection("pricing")}
               badge={<CheckCircle2 size={13} className="text-emerald-500" />}
@@ -1048,24 +1018,7 @@ export default function OrderWorkspace({
                 </div>
                 <div className="space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Payment Milestones Schedule</span>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
-                      <span className="text-zinc-500">M0: Sample Approval</span>
-                      <p className="font-bold text-zinc-800 mt-0.5">10% ({formatMoney(workspaceOrder.amount * 0.1)})</p>
-                    </div>
-                    <div className="bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
-                      <span className="text-zinc-500">M1: Production Start</span>
-                      <p className="font-bold text-zinc-800 mt-0.5">40% ({formatMoney(workspaceOrder.amount * 0.4)})</p>
-                    </div>
-                    <div className="bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
-                      <span className="text-zinc-500">M2: QC Approval</span>
-                      <p className="font-bold text-zinc-800 mt-0.5">30% ({formatMoney(workspaceOrder.amount * 0.3)})</p>
-                    </div>
-                    <div className="bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
-                      <span className="text-zinc-500">M3: Final Delivery</span>
-                      <p className="font-bold text-zinc-800 mt-0.5">20% ({formatMoney(workspaceOrder.amount * 0.2)})</p>
-                    </div>
-                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">{milestones.map((milestone, index) => <div key={`${milestone.name}-${index}`} className="rounded-lg border border-zinc-100 bg-zinc-50 p-2.5"><span className="text-zinc-500">M{persistedMilestones[index]?.milestone_number ?? index}: {milestone.name}</span><p className="mt-0.5 font-bold text-zinc-800">{milestone.percent}% ({formatMoney((workspaceOrder.amount * milestone.percent) / 100)})</p></div>)}</div>
                 </div>
               </div>
             </Accordion>
@@ -1086,6 +1039,16 @@ export default function OrderWorkspace({
               }
               icon={ShieldCheck}
             >
+              {session.role === "admin" && <section className="mb-6 rounded-xl border border-violet-200 bg-violet-50/50 p-4">
+                <div className="mb-3"><h4 className="text-sm font-semibold text-violet-950">Record manual escrow</h4><p className="mt-1 text-xs text-violet-700">Every retry uses the payment reference as an idempotency key and writes the audit log.</p></div>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                  <select value={escrowEntryType} onChange={(event) => setEscrowEntryType(event.target.value as EscrowEntryType)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs"><option value="manual_funding">Funding</option><option value="milestone_release">Milestone release</option><option value="refund">Refund</option><option value="adjustment">Adjustment</option></select>
+                  <input type="number" min="0.01" step="0.01" value={escrowAmount} onChange={(event) => setEscrowAmount(event.target.value)} placeholder="Amount USD" className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs" />
+                  <input value={escrowReference} onChange={(event) => setEscrowReference(event.target.value)} placeholder="Bank or USDC reference" className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs" />
+                  <input value={escrowNotes} onChange={(event) => setEscrowNotes(event.target.value)} placeholder="Internal note" className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs" />
+                  <button type="button" disabled={isSavingEvent} onClick={() => void submitEscrowEntry()} className="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Record entry</button>
+                </div>
+              </section>}
               <div className="grid gap-6 md:grid-cols-5">
                 <div className="md:col-span-2 space-y-4 bg-zinc-50/50 p-4.5 rounded-xl border border-zinc-150">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Escrow Overview</h4>
@@ -1166,8 +1129,9 @@ export default function OrderWorkspace({
                                 <span className="text-[10px] font-semibold text-[#6E56CF]">{m.action}</span>
                                 <button
                                   type="button"
+                                  disabled={!roleCanPerform(session.role, lifecycleActionForLabel(m.action || m.name))}
                                   onClick={() => confirmAction(m.action || m.name)}
-                                  className="rounded bg-[#6E56CF] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#5B3CC4] transition"
+                                  className="rounded bg-[#6E56CF] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#5B3CC4] transition disabled:cursor-not-allowed disabled:bg-zinc-300"
                                 >
                                   Record action
                                 </button>
@@ -1196,13 +1160,13 @@ export default function OrderWorkspace({
                   <h4 className="font-semibold text-xs text-zinc-800">Quality check reports and evidence</h4>
                   <p className="text-xs text-zinc-400 mt-1 max-w-md leading-relaxed">Submit physical sample photos and techpack checks here before shipping. Releases 30% milestone.</p>
                 </div>
-                <button
+                {session.role === "manufacturer" && <button
                   type="button"
                   onClick={() => confirmAction("QC proof submitted")}
                   className="rounded-lg bg-[#6E56CF] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#5B3CC4] transition shadow-sm"
                 >
-                  Upload QC proof
-                </button>
+                  Submit attached QC evidence
+                </button>}
               </div>
             </Accordion>
 
@@ -1220,13 +1184,13 @@ export default function OrderWorkspace({
                   <h4 className="font-semibold text-xs text-zinc-800">Tracking information & logistics proof</h4>
                   <p className="text-xs text-zinc-400 mt-1 max-w-md leading-relaxed">Provide carrier, tracking ID and commercial shipping bill to request final milestone release.</p>
                 </div>
-                <button
+                {session.role === "manufacturer" && <button
                   type="button"
                   onClick={() => confirmAction("Add tracking")}
                   className="rounded-lg border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition shadow-sm"
                 >
                   Add tracking
-                </button>
+                </button>}
               </div>
             </Accordion>
 
@@ -1234,24 +1198,25 @@ export default function OrderWorkspace({
             <Accordion
               id="files"
               title="Files & Attachments"
-              subtitle="8 Files"
+              subtitle={`${conversation.filter((event) => event.attachment).length} files`}
               expanded={expandedSections.files}
               onToggle={() => toggleSection("files")}
               icon={Paperclip}
             >
               <div className="grid gap-3.5 grid-cols-2 sm:grid-cols-4">
-                {["locked-techpack-v1.pdf", "Logo.ai", "Mockup_front.png", "Mockup_back.png", "Fabric_spec.pdf", "commercial-invoice.pdf"].map((file, idx) => (
-                  <div key={file} className="rounded-lg border border-zinc-200 bg-white p-3 shadow-xs hover:border-[#6E56CF]/40 transition group">
+                {conversation.filter((event) => event.attachment).map((event) => (
+                  <a key={event.id} href={event.attachment} target="_blank" rel="noreferrer" className="rounded-lg border border-zinc-200 bg-white p-3 shadow-xs hover:border-[#6E56CF]/40 transition group">
                     <div className="h-20 bg-zinc-50/50 rounded-md border border-zinc-100 flex items-center justify-center text-zinc-400 text-xs mb-2 overflow-hidden relative">
                       <FileText size={24} className="text-zinc-300 group-hover:text-[#6E56CF]/55 transition" />
                       <div className="absolute inset-0 bg-[#6E56CF]/5 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                         <Download size={16} className="text-[#6E56CF]" />
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-zinc-800 block truncate">{file}</span>
-                    <span className="text-[9px] text-zinc-400 mt-0.5 block">{idx === 0 ? "2.4 MB" : idx === 1 ? "1.2 MB" : "3.6 MB"}</span>
-                  </div>
+                    <span className="text-[10px] font-bold text-zinc-800 block truncate">{event.attachment?.split("/").pop()}</span>
+                    <span className="text-[9px] text-zinc-400 mt-0.5 block">Conversation attachment</span>
+                  </a>
                 ))}
+                {!conversation.some((event) => event.attachment) && <p className="col-span-full rounded-lg border border-dashed border-zinc-200 p-6 text-center text-xs text-zinc-400">No files uploaded yet.</p>}
               </div>
             </Accordion>
 
@@ -1351,12 +1316,13 @@ export default function OrderWorkspace({
                               <button
                                 key={act}
                                 type="button"
+                                disabled={Boolean(lifecycleActionForLabel(act)) && !roleCanPerform(session.role, lifecycleActionForLabel(act))}
                                 onClick={() => confirmAction(act)}
                                 className={`px-2.5 py-1 text-[10px] font-semibold rounded ${
                                   idx === 0 
                                     ? "bg-[#6E56CF] text-white hover:bg-[#5B3CC4]" 
                                     : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
-                                } transition`}
+                                } transition disabled:cursor-not-allowed disabled:opacity-50`}
                               >
                                 {act === "Record escrow funding" ? "Fund Escrow" : act === "Confirm production start" ? "Start Production" : act}
                               </button>

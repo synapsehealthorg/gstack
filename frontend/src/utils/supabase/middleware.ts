@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { publicEnv } from "@/lib/env";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -7,8 +8,8 @@ export async function updateSession(request: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    publicEnv.supabaseUrl,
+    publicEnv.supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -35,27 +36,29 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const isDevBypass = process.env.NODE_ENV !== "production" && request.cookies.get("dev_bypass")?.value === "true";
+
   if (request.nextUrl.pathname.startsWith("/admin")) {
-    if (!user) {
+    if (!user && !isDevBypass) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("user_type")
-      .eq("id", user.id)
-      .single();
+    if (!isDevBypass) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("id", user!.id)
+        .single();
 
-    if (profile?.user_type !== "admin") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
+      if (profile?.user_type !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/";
+        return NextResponse.redirect(url);
+      }
     }
   }
-
-  const isDevBypass = request.cookies.get("dev_bypass")?.value === "true";
 
   if (!user && !isDevBypass) {
     if (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/orders")) {
@@ -69,8 +72,24 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/login") ||
       request.nextUrl.pathname.startsWith("/auth")
     ) {
+      let role = "buyer";
+      if (isDevBypass) {
+        role = "admin";
+      } else if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
+        role = profile?.user_type || "buyer";
+      }
+      
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      if (role === "admin") {
+        url.pathname = "/admin";
+      } else {
+        url.pathname = "/dashboard";
+      }
       return NextResponse.redirect(url);
     }
   }

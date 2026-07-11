@@ -1,4 +1,4 @@
--- Allow the order workspace to persist execution-state updates by either party.
+-- Legacy workspace policy. The pilot transaction spine replaces this broad policy.
 -- Detailed financial movement still belongs in escrow ledger / milestone events.
 do $$ begin
   create policy "Order parties update workspace state"

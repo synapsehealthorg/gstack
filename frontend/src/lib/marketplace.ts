@@ -1,8 +1,8 @@
 "use client"
 
 import { createClient } from "@/utils/supabase/client"
+import type { ActionResult } from "@/lib/pilot-contracts"
 
-const LOCAL_KEY = "proov_marketplace_demo_v1"
 const SAVED_KEY = "proov_marketplace_saved_v1"
 
 export type MarketplaceRole = "buyer" | "manufacturer" | "admin" | "guest"
@@ -127,11 +127,7 @@ function browserSavedIds() {
 
 function demoListings() {
   const saved = browserSavedIds()
-  let custom: MarketplaceListing[] = []
-  if (typeof window !== "undefined") {
-    try { custom = JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]") } catch { custom = [] }
-  }
-  return [...custom, ...SEEDED_LISTINGS].map((listing) => ({ ...listing, saved: saved.has(listing.id) }))
+  return SEEDED_LISTINGS.map((listing) => ({ ...listing, saved: saved.has(listing.id) }))
 }
 
 function rowToListing(row: Record<string, unknown>, saved: Set<string>): MarketplaceListing {
@@ -143,6 +139,9 @@ function rowToListing(row: Record<string, unknown>, saved: Set<string>): Marketp
 }
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : "Unknown database error" }
+function actionFailure<T>(code: string, error: unknown): ActionResult<T> {
+  return { ok: false, code, message: errorMessage(error) }
+}
 
 export const marketplaceRepository = {
   async listings(): Promise<MarketplaceResult<MarketplaceListing[]>> {
@@ -162,23 +161,25 @@ export const marketplaceRepository = {
     }
   },
 
-  async toggleSaved(listing: MarketplaceListing): Promise<MarketplaceResult<boolean>> {
-    const saved = browserSavedIds()
-    if (saved.has(listing.id)) saved.delete(listing.id); else saved.add(listing.id)
-    localStorage.setItem(SAVED_KEY, JSON.stringify([...saved]))
+  async toggleSaved(listing: MarketplaceListing): Promise<ActionResult<boolean>> {
     try {
       const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser()
-      if (!user || listing.id.startsWith("demo-")) return { data: saved.has(listing.id), source: "demo", warning: "Saved in this browser only." }
-      if (saved.has(listing.id)) {
+      if (!user) return { ok: false, code: "AUTH_REQUIRED", message: "Sign in to save marketplace RFQs." }
+      if (listing.id.startsWith("demo-")) return { ok: false, code: "DEMO_READ_ONLY", message: "Demo RFQs are read-only. Publish or open a live RFQ instead." }
+      const saved = browserSavedIds()
+      const nextSaved = !saved.has(listing.id)
+      if (nextSaved) {
         const { error } = await supabase.from("marketplace_favorites").upsert({ user_id: user.id, inquiry_id: listing.id }); if (error) throw error
       } else {
         const { error } = await supabase.from("marketplace_favorites").delete().eq("user_id", user.id).eq("inquiry_id", listing.id); if (error) throw error
       }
-      return { data: saved.has(listing.id), source: "supabase" }
-    } catch (error) { return { data: saved.has(listing.id), source: "demo", warning: `Saved locally; cloud sync failed. ${errorMessage(error)}` } }
+      if (nextSaved) saved.add(listing.id); else saved.delete(listing.id)
+      localStorage.setItem(SAVED_KEY, JSON.stringify([...saved]))
+      return { ok: true, data: nextSaved }
+    } catch (error) { return actionFailure("SAVE_FAILED", error) }
   },
 
-  async saveListing(listing: MarketplaceListing): Promise<MarketplaceResult<MarketplaceListing>> {
+  async saveListing(listing: MarketplaceListing): Promise<ActionResult<MarketplaceListing>> {
     try {
       const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Authentication required")
@@ -200,24 +201,20 @@ export const marketplaceRepository = {
 
       const { data: hydrated, error: hydrateError } = await supabase.from("inquiries").select("*, profiles(full_name), order_products(id, name, category, quantity, unit, target_unit_price, thumbnail_url, quality_coverage)").eq("id", data.id).single()
       if (hydrateError) throw hydrateError
-      return { data: rowToListing(hydrated as Record<string, unknown>, browserSavedIds()), source: "supabase" }
+      return { ok: true, data: rowToListing(hydrated as Record<string, unknown>, browserSavedIds()) }
     } catch (error) {
-      const local = { ...listing, id: listing.id.startsWith("new-") ? `local-${crypto.randomUUID()}` : listing.id }
-      const custom = demoListings().filter((item) => item.id.startsWith("local-") && item.id !== local.id)
-      localStorage.setItem(LOCAL_KEY, JSON.stringify([local, ...custom]))
-      return { data: local, source: "demo", warning: `Saved locally; database write failed. ${errorMessage(error)}` }
+      return actionFailure("RFQ_SAVE_FAILED", error)
     }
   },
 
-  async removeListing(listing: MarketplaceListing): Promise<MarketplaceResult<boolean>> {
+  async removeListing(listing: MarketplaceListing): Promise<ActionResult<boolean>> {
     try {
       if (listing.id.startsWith("local-") || listing.id.startsWith("demo-")) {
-        localStorage.setItem(LOCAL_KEY, JSON.stringify(demoListings().filter((item) => item.id.startsWith("local-") && item.id !== listing.id)))
-        return { data: true, source: "demo", warning: "Removed from local demo data." }
+        return { ok: false, code: "DEMO_READ_ONLY", message: "Demo RFQs cannot be deleted." }
       }
       const supabase = createClient(); const { error } = await supabase.from("inquiries").delete().eq("id", listing.id); if (error) throw error
-      return { data: true, source: "supabase" }
-    } catch (error) { return { data: false, source: "demo", warning: `Delete failed. ${errorMessage(error)}` } }
+      return { ok: true, data: true }
+    } catch (error) { return actionFailure("RFQ_DELETE_FAILED", error) }
   },
 
   async bids(inquiryId?: string, manufacturerId?: string): Promise<MarketplaceResult<MarketplaceBid[]>> {
@@ -229,41 +226,41 @@ export const marketplaceRepository = {
     } catch (error) { return { data: [], source: "demo", warning: `Bids could not load. ${errorMessage(error)}` } }
   },
 
-  async submitBid(listing: MarketplaceListing, values: Pick<MarketplaceBid, "unitPrice" | "tatDays" | "sampleAvailable" | "sampleTatDays" | "message" | "productPrices">): Promise<MarketplaceResult<boolean>> {
+  async submitBid(listing: MarketplaceListing, values: Pick<MarketplaceBid, "unitPrice" | "tatDays" | "sampleAvailable" | "sampleTatDays" | "message" | "productPrices">): Promise<ActionResult<boolean>> {
     try {
-      if (listing.id.startsWith("demo-")) return { data: false, source: "demo", warning: "This is a demo RFQ. Publish a live RFQ to test persisted bidding." }
+      if (listing.id.startsWith("demo-")) return { ok: false, code: "DEMO_READ_ONLY", message: "This is a demo RFQ. Open a live RFQ to submit a persisted bid." }
       const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Authentication required")
       const { data: existing } = await supabase.from("bids").select("id, revision").eq("inquiry_id", listing.id).eq("manufacturer_id", user.id).maybeSingle()
       const { error } = await supabase.from("bids").upsert({ id: existing?.id, inquiry_id: listing.id, manufacturer_id: user.id, unit_price: values.unitPrice, tat_days: values.tatDays, sample_available: values.sampleAvailable, sample_tat_days: values.sampleTatDays, message: values.message, product_prices: values.productPrices, revision: Number(existing?.revision || 0) + 1, status: "pending", counter_unit_price: null, counter_tat_days: null, counter_message: null, updated_at: new Date().toISOString() }); if (error) throw error
       await supabase.rpc("notify_marketplace_user", { target_user_id: listing.buyerId, target_inquiry_id: listing.id, event_type: existing ? "bid_revised" : "bid_received", event_title: existing ? "A manufacturer revised their bid" : "New marketplace bid received", event_body: `${listing.title}: $${values.unitPrice.toFixed(2)} per unit, ${values.tatDays} days.` })
-      return { data: true, source: "supabase" }
-    } catch (error) { return { data: false, source: "demo", warning: `Bid was not submitted. ${errorMessage(error)}` } }
+      return { ok: true, data: true }
+    } catch (error) { return actionFailure("BID_SUBMIT_FAILED", error) }
   },
 
-  async withdrawBid(bidId: string): Promise<MarketplaceResult<boolean>> {
-    try { const supabase = createClient(); const { error } = await supabase.from("bids").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", bidId); if (error) throw error; return { data: true, source: "supabase" } }
-    catch (error) { return { data: false, source: "demo", warning: `Bid withdrawal failed. ${errorMessage(error)}` } }
+  async withdrawBid(bidId: string): Promise<ActionResult<boolean>> {
+    try { const supabase = createClient(); const { error } = await supabase.from("bids").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", bidId); if (error) throw error; return { ok: true, data: true } }
+    catch (error) { return actionFailure("BID_WITHDRAW_FAILED", error) }
   },
 
-  async setBidDecision(bid: MarketplaceBid, action: "shortlist" | "reject"): Promise<MarketplaceResult<boolean>> {
+  async setBidDecision(bid: MarketplaceBid, action: "shortlist" | "reject"): Promise<ActionResult<boolean>> {
     try {
       const supabase = createClient()
       const { error } = await supabase.rpc("update_marketplace_bid_decision", { target_bid_id: bid.id, bid_action: action, target_shortlisted: action === "shortlist" ? !bid.shortlisted : null }); if (error) throw error
-      return { data: true, source: "supabase" }
-    } catch (error) { return { data: false, source: "demo", warning: `Bid decision failed. ${errorMessage(error)}` } }
+      return { ok: true, data: true }
+    } catch (error) { return actionFailure("BID_DECISION_FAILED", error) }
   },
 
-  async counterBid(bid: MarketplaceBid, unitPrice: number, tatDays: number, message: string): Promise<MarketplaceResult<boolean>> {
+  async counterBid(bid: MarketplaceBid, unitPrice: number, tatDays: number, message: string): Promise<ActionResult<boolean>> {
     try {
       const supabase = createClient()
       const { error } = await supabase.rpc("update_marketplace_bid_decision", { target_bid_id: bid.id, bid_action: "counter", offered_unit_price: unitPrice, offered_tat_days: tatDays, offer_message: message }); if (error) throw error
-      return { data: true, source: "supabase" }
-    } catch (error) { return { data: false, source: "demo", warning: `Counter offer failed. ${errorMessage(error)}` } }
+      return { ok: true, data: true }
+    } catch (error) { return actionFailure("COUNTER_OFFER_FAILED", error) }
   },
 
-  async acceptBid(bidId: string): Promise<MarketplaceResult<string | null>> {
-    try { const supabase = createClient(); const { data, error } = await supabase.rpc("accept_marketplace_bid", { target_bid_id: bidId }); if (error) throw error; return { data: String(data), source: "supabase" } }
-    catch (error) { return { data: null, source: "demo", warning: `Bid acceptance failed. ${errorMessage(error)}` } }
+  async acceptBid(bidId: string): Promise<ActionResult<string>> {
+    try { const supabase = createClient(); const { data, error } = await supabase.rpc("accept_marketplace_bid", { target_bid_id: bidId }); if (error) throw error; return { ok: true, data: String(data) } }
+    catch (error) { return actionFailure("BID_ACCEPT_FAILED", error) }
   },
 
   async questions(inquiryId: string): Promise<MarketplaceResult<MarketplaceQuestion[]>> {
@@ -271,9 +268,9 @@ export const marketplaceRepository = {
     catch (error) { return { data: [], source: "demo", warning: `Questions could not load. ${errorMessage(error)}` } }
   },
 
-  async askQuestion(listing: MarketplaceListing, body: string, attachmentUrls: string[] = []): Promise<MarketplaceResult<boolean>> {
-    try { if (listing.id.startsWith("demo-")) return { data: false, source: "demo", warning: "Questions on demo RFQs are not persisted." }; const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Authentication required"); const { error } = await supabase.from("inquiry_messages").insert({ inquiry_id: listing.id, author_id: user.id, body, attachment_urls: attachmentUrls }); if (error) throw error; return { data: true, source: "supabase" } }
-    catch (error) { return { data: false, source: "demo", warning: `Question was not sent. ${errorMessage(error)}` } }
+  async askQuestion(listing: MarketplaceListing, body: string, attachmentUrls: string[] = []): Promise<ActionResult<boolean>> {
+    try { if (listing.id.startsWith("demo-")) return { ok: false, code: "DEMO_READ_ONLY", message: "Questions on demo RFQs are not persisted." }; const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Authentication required"); const { error } = await supabase.from("inquiry_messages").insert({ inquiry_id: listing.id, author_id: user.id, body, attachment_urls: attachmentUrls }); if (error) throw error; return { ok: true, data: true } }
+    catch (error) { return actionFailure("QUESTION_SEND_FAILED", error) }
   },
 
   async manufacturers(): Promise<MarketplaceResult<MarketplaceManufacturer[]>> {

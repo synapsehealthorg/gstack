@@ -159,7 +159,7 @@ export default function OrderCreationWizard() {
     if (result.orderId) {
       router.push(`/orders/${result.orderId}`)
     } else {
-      router.push("/dashboard?panel=market")
+      router.push("/marketplace")
     }
   }
 

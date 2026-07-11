@@ -1,10 +1,5 @@
-import { OrderCreationProvider } from "@/components/orders/OrderCreationContext"
-import OrderCreationWizard from "@/components/orders/OrderCreationWizard"
+import OrderCreationWizardClient from "@/components/orders/OrderCreationWizardClient";
 
 export default function NewOrderPage() {
-  return (
-    <OrderCreationProvider>
-      <OrderCreationWizard />
-    </OrderCreationProvider>
-  )
+  return <OrderCreationWizardClient />;
 }

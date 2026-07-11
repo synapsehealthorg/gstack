@@ -85,7 +85,8 @@ export default function MarketBoardHome({ currentUserId, currentUserRole, curren
     }
     setWorking(true)
     const result = await marketplaceRepository.saveListing({ ...editing, status: publish ? "active" : "draft" })
-    setWarning(result.warning || null)
+    if (!result.ok) { setWarning(result.message); setWorking(false); return }
+    setWarning(null)
     setListings((items) => [result.data, ...items.filter((item) => item.id !== editing.id && item.id !== result.data.id)])
     setSelected(result.data); setModal(null); setWorking(false)
   }
@@ -93,28 +94,32 @@ export default function MarketBoardHome({ currentUserId, currentUserRole, curren
     setWorking(true)
     const copy = { ...listing, id: `new-${crypto.randomUUID()}`, title: `${listing.title} Copy`, status: "draft" as const, bidCount: 0, createdAt: new Date().toISOString() }
     const result = await marketplaceRepository.saveListing(copy)
-    setListings((items) => [result.data, ...items]); setWarning(result.warning || null); setWorking(false); setMenuId(null)
+    if (result.ok) setListings((items) => [result.data, ...items])
+    setWarning(result.ok ? null : result.message); setWorking(false); setMenuId(null)
   }
   const closeListing = async (listing: MarketplaceListing) => {
     const result = await marketplaceRepository.saveListing({ ...listing, status: "cancelled" })
-    setListings((items) => items.map((item) => item.id === listing.id ? result.data : item)); setWarning(result.warning || null); setMenuId(null)
+    if (result.ok) setListings((items) => items.map((item) => item.id === listing.id ? result.data : item))
+    setWarning(result.ok ? null : result.message); setMenuId(null)
   }
   const archiveListing = async (listing: MarketplaceListing) => {
     const result = await marketplaceRepository.saveListing({ ...listing, archivedAt: listing.archivedAt ? null : new Date().toISOString() })
-    setListings((items) => items.map((item) => item.id === listing.id ? result.data : item)); setWarning(result.warning || null); setMenuId(null)
+    if (result.ok) setListings((items) => items.map((item) => item.id === listing.id ? result.data : item))
+    setWarning(result.ok ? null : result.message); setMenuId(null)
   }
   const deleteListing = async (listing: MarketplaceListing) => {
     if (!window.confirm(`Delete “${listing.title}”? This cannot be undone.`)) return
     const result = await marketplaceRepository.removeListing(listing)
-    if (result.data) setListings((items) => items.filter((item) => item.id !== listing.id))
-    setWarning(result.warning || null); setMenuId(null)
+    if (result.ok) setListings((items) => items.filter((item) => item.id !== listing.id))
+    setWarning(result.ok ? null : result.message); setMenuId(null)
   }
   const toggleSaved = async (listing: MarketplaceListing) => {
     if (currentUserRole === "guest") { router.push("/login?next=/marketplace"); return }
     const result = await marketplaceRepository.toggleSaved(listing)
+    if (!result.ok) { setWarning(result.message); return }
     setListings((items) => items.map((item) => item.id === listing.id ? { ...item, saved: result.data } : item))
     setSelected((item) => item?.id === listing.id ? { ...item, saved: result.data } : item)
-    setWarning(result.warning || null)
+    setWarning(null)
   }
   const openBids = async (listing: MarketplaceListing, target: "bid" | "compare") => {
     setSelected(listing); setWorking(true)
@@ -160,7 +165,7 @@ export default function MarketBoardHome({ currentUserId, currentUserRole, curren
         {loading ? <LoadingState /> : tab === "manufacturers" ? (
           <ManufacturerDirectory manufacturers={manufacturers} query={query} setQuery={setQuery} onOpen={(manufacturer) => { setSelectedManufacturer(manufacturer); setModal("manufacturer") }} />
         ) : tab === "offers" ? (
-          <OffersView offers={offers} listings={listings} onBrowse={() => setTab("browse")} onOrder={(offer) => offer.orderId && router.push(`/orders/${offer.orderId}`)} onOpen={(offer) => { const listing = listings.find((item) => item.id === offer.inquiryId); if (listing) { setSelected(listing); setBids([offer]); setModal("bid") } }} onWithdraw={async (offer) => { if (!confirm("Withdraw this bid?")) return; const result = await marketplaceRepository.withdrawBid(offer.id); setWarning(result.warning || null); if (result.data) setOffers((items) => items.map((item) => item.id === offer.id ? { ...item, status: "withdrawn" } : item)) }} />
+          <OffersView offers={offers} listings={listings} onBrowse={() => setTab("browse")} onOrder={(offer) => offer.orderId && router.push(`/orders/${offer.orderId}`)} onOpen={(offer) => { const listing = listings.find((item) => item.id === offer.inquiryId); if (listing) { setSelected(listing); setBids([offer]); setModal("bid") } }} onWithdraw={async (offer) => { if (!confirm("Withdraw this bid?")) return; const result = await marketplaceRepository.withdrawBid(offer.id); setWarning(result.ok ? null : result.message); if (result.ok) setOffers((items) => items.map((item) => item.id === offer.id ? { ...item, status: "withdrawn" } : item)) }} />
         ) : (
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(380px,.95fr)]">
             <div className="space-y-3">
@@ -174,9 +179,9 @@ export default function MarketBoardHome({ currentUserId, currentUserRole, curren
       </div>
 
       {modal === "listing" && editing && <ListingModal listing={editing} setListing={setEditing} working={working} onClose={() => setModal(null)} onSave={() => void saveListing(false)} onPublish={() => void saveListing(true)} />}
-      {modal === "bid" && selected && <BidModal listing={selected} existing={bids.find((bid) => bid.manufacturerId === currentUserId)} working={working} onClose={() => setModal(null)} onSubmit={async (values) => { setWorking(true); const result = await marketplaceRepository.submitBid(selected, values); setWarning(result.warning || null); setWorking(false); if (result.data) { setModal(null); await load() } }} />}
-      {modal === "questions" && selected && <QuestionsModal listing={selected} questions={questions} working={working} onClose={() => setModal(null)} onSend={async (body, attachmentUrls) => { setWorking(true); const result = await marketplaceRepository.askQuestion(selected, body, attachmentUrls); setWarning(result.warning || null); if (result.data) { const refreshed = await marketplaceRepository.questions(selected.id); setQuestions(refreshed.data) } setWorking(false) }} />}
-      {modal === "compare" && selected && <CompareModal listing={selected} bids={bids} working={working} onClose={() => setModal(null)} onDecision={async (bid, action) => { setWorking(true); const result = await marketplaceRepository.setBidDecision(bid, action); setWarning(result.warning || null); if (result.data) { const refreshed = await marketplaceRepository.bids(selected.id); setBids(refreshed.data) } setWorking(false) }} onCounter={async (bid, price, days, message) => { setWorking(true); const result = await marketplaceRepository.counterBid(bid, price, days, message); setWarning(result.warning || null); if (result.data) { const refreshed = await marketplaceRepository.bids(selected.id); setBids(refreshed.data) } setWorking(false) }} onAccept={async (bid) => { if (!confirm(`Accept ${bid.manufacturerName}'s bid and create an order?`)) return; setWorking(true); const result = await marketplaceRepository.acceptBid(bid.id); setWarning(result.warning || null); setWorking(false); if (result.data) router.push(`/orders/${result.data}`) }} />}
+      {modal === "bid" && selected && <BidModal listing={selected} existing={bids.find((bid) => bid.manufacturerId === currentUserId)} working={working} onClose={() => setModal(null)} onSubmit={async (values) => { setWorking(true); const result = await marketplaceRepository.submitBid(selected, values); setWarning(result.ok ? null : result.message); setWorking(false); if (result.ok) { setModal(null); await load() } }} />}
+      {modal === "questions" && selected && <QuestionsModal listing={selected} questions={questions} working={working} onClose={() => setModal(null)} onSend={async (body, attachmentUrls) => { setWorking(true); const result = await marketplaceRepository.askQuestion(selected, body, attachmentUrls); setWarning(result.ok ? null : result.message); if (result.ok) { const refreshed = await marketplaceRepository.questions(selected.id); setQuestions(refreshed.data) } setWorking(false) }} />}
+      {modal === "compare" && selected && <CompareModal listing={selected} bids={bids} working={working} onClose={() => setModal(null)} onDecision={async (bid, action) => { setWorking(true); const result = await marketplaceRepository.setBidDecision(bid, action); setWarning(result.ok ? null : result.message); if (result.ok) { const refreshed = await marketplaceRepository.bids(selected.id); setBids(refreshed.data) } setWorking(false) }} onCounter={async (bid, price, days, message) => { setWorking(true); const result = await marketplaceRepository.counterBid(bid, price, days, message); setWarning(result.ok ? null : result.message); if (result.ok) { const refreshed = await marketplaceRepository.bids(selected.id); setBids(refreshed.data) } setWorking(false) }} onAccept={async (bid) => { if (!confirm(`Accept ${bid.manufacturerName}'s bid and create an order?`)) return; setWorking(true); const result = await marketplaceRepository.acceptBid(bid.id); setWarning(result.ok ? null : result.message); setWorking(false); if (result.ok) router.push(`/orders/${result.data}`) }} />}
       {modal === "manufacturer" && selectedManufacturer && <ManufacturerModal manufacturer={selectedManufacturer} guest={currentUserRole === "guest"} onClose={() => setModal(null)} onInvite={() => { setModal(null); router.push(currentUserRole === "guest" ? "/login?next=/marketplace" : "/orders/new") }} />}
       {working && <div className="fixed bottom-5 right-5 z-[80] rounded-lg bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white shadow-xl">Saving changes...</div>}
     </section>
@@ -188,6 +193,7 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
 function ListingCard({ listing, nowTimestamp, selected, role, menuOpen, onOpen, onSave, onMenu, onEdit, onDuplicate, onClose, onArchive, onDelete }: { listing: MarketplaceListing; nowTimestamp: number; selected: boolean; role: MarketplaceRole; menuOpen: boolean; onOpen: () => void; onSave: () => void; onMenu: () => void; onEdit: () => void; onDuplicate: () => void; onClose: () => void; onArchive: () => void; onDelete: () => void }) {
   const days = Math.max(0, Math.ceil((+new Date(listing.expiresAt) - nowTimestamp) / 86400000))
   return <article onClick={onOpen} className={`relative cursor-pointer rounded-xl border bg-white p-4 transition hover:border-[#94a3b8] hover:shadow-md ${selected ? "border-blue-300 ring-2 ring-blue-50" : "border-[#e2e8f0]"}`}>
+    {listing.id.startsWith("demo-") && <span className="absolute left-2 top-2 z-10 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900 shadow-sm">Demo · read only</span>}
     <div className="flex gap-4"><img src={listing.thumbnailUrl} alt="" className="h-24 w-24 rounded-lg bg-[#f1f5f9] object-cover" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${listing.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{listing.status === "active" ? "Live" : listing.status}</span>{listing.splitBidding && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">Split bidding</span>}<span className="font-mono text-[10px] text-[#94a3b8]">{listing.inquiryNumber}</span></div><h2 className="mt-1.5 truncate text-sm font-semibold text-[#0f172a]">{listing.title}</h2><p className="mt-1 text-xs text-[#64748b]">{listing.buyerName} · {listing.category}</p></div><div className="flex gap-1"><button aria-label="Save RFQ" onClick={(event) => { event.stopPropagation(); onSave() }} className="rounded-md p-2 text-[#64748b] hover:bg-[#f1f5f9] hover:text-blue-600"><Bookmark size={15} fill={listing.saved ? "currentColor" : "none"} /></button>{role === "buyer" && <button aria-label="RFQ actions" onClick={(event) => { event.stopPropagation(); onMenu() }} className="rounded-md p-2 text-[#64748b] hover:bg-[#f1f5f9]"><MoreHorizontal size={16} /></button>}</div></div><div className="mt-3 grid grid-cols-4 gap-2"><Metric label="Quantity" value={`${listing.quantity.toLocaleString()} ${listing.unit}`} /><Metric label="Target" value={`$${listing.targetPrice.toFixed(2)}`} /><Metric label="TAT" value={`${listing.tatDays} days`} /><Metric label="Bids" value={String(listing.bidCount)} /></div><div className="mt-3 flex items-center justify-between text-[11px] text-[#64748b]"><span className="flex items-center gap-1"><MapPin size={12} />{listing.destination}</span><span className={`flex items-center gap-1 ${days <= 2 ? "text-rose-600" : ""}`}><Clock3 size={12} />{days}d remaining</span></div></div></div>
     {menuOpen && <div onClick={(event) => event.stopPropagation()} className="absolute right-4 top-12 z-20 w-44 rounded-lg border border-[#e2e8f0] bg-white p-1 shadow-xl"><ActionButton icon={<FileText size={13} />} label="Edit" onClick={onEdit} /><ActionButton icon={<Copy size={13} />} label="Duplicate" onClick={onDuplicate} />{listing.status === "active" && <ActionButton icon={<X size={13} />} label="Close RFQ" onClick={onClose} />}<ActionButton icon={<Archive size={13} />} label={listing.archivedAt ? "Restore" : "Archive"} onClick={onArchive} /><ActionButton icon={<Trash2 size={13} />} label="Delete" onClick={onDelete} danger /></div>}
   </article>

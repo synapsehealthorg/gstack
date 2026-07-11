@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState('');
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [baseUrl, setBaseUrl] = useState('proov.to');
+  const [baseUrl, setBaseUrl] = useState('app.proov.to');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

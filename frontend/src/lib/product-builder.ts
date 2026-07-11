@@ -213,7 +213,7 @@ export const productRepository = {
         updated_at: savedDocument.updatedAt,
       }).select().single();
       if (fallbackError || !fallbackData) throw fallbackError || error;
-      return { data: rowToDocument(fallbackData), source: "supabase", warning: "Saved using the compatibility schema. Apply migration 00006_product_builder.sql for favorites and archive support." };
+      return { data: rowToDocument(fallbackData), source: "supabase", warning: "Saved using the compatibility schema. Apply migration 00007_product_builder.sql for favorites and archive support." };
     } catch (error) {
       return { data: savedDocument, source: "local", warning: `Saved locally; cloud sync failed: ${error instanceof Error ? error.message : "Unknown Supabase error"}` };
     }
@@ -237,4 +237,3 @@ export const productRepository = {
     return this.save({ ...structuredClone(document), id: crypto.randomUUID(), name: `${document.name} Copy`, status: "draft", favorite: false, archivedAt: null, createdAt: now, updatedAt: now });
   },
 };
-
