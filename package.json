@@ -8,11 +8,6 @@
     "build": "npm run build --prefix frontend",
     "start": "npm run start --prefix frontend"
   },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "firebase-admin": "^11.11.1"
-  },
   "engines": {
     "node": ">=20.9.0"
   }
