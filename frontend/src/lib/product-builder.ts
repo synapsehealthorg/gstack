@@ -161,8 +161,8 @@ export const productRepository = {
       }
       const { data, error } = await supabase.from("product_snapshots").select("*").eq("owner_id", user.id).order("updated_at", { ascending: false });
       if (error) throw error;
-      const remote = (data || []).map((row) => rowToDocument(row));
-      const merged = [...remote, ...local.filter((item) => !remote.some((remoteItem) => remoteItem.id === item.id))];
+      const remote = (data || []).map((row: any) => rowToDocument(row));
+      const merged = [...remote, ...local.filter((item) => !remote.some((remoteItem: any) => remoteItem.id === item.id))];
       return { data: merged.filter((item) => options.includeArchived || !item.archivedAt), source: "supabase" };
     } catch (error) {
       return { data: local.filter((item) => options.includeArchived || !item.archivedAt), source: "local", warning: `Cloud products could not load: ${error instanceof Error ? error.message : "Unknown Supabase error"}` };

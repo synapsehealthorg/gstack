@@ -299,7 +299,7 @@ export const proovDb = {
   getLogs: async (): Promise<LogEntry[]> => {
     const supabase = createClient()
     const { data } = await supabase.from("logs").select("*").order("timestamp", { ascending: false }).limit(50)
-    return (data || []).map((entry) => ({
+    return (data || []).map((entry: any) => ({
       ...entry,
       action: entry.message || entry.category,
       details: entry.category,
@@ -930,7 +930,7 @@ export const proovDb = {
       .eq("user_type", "manufacturer")
       .ilike("full_name", `%${query}%`)
       .limit(10)
-    return (data || []).map(p => ({
+    return (data || []).map((p: any) => ({
       id: p.id,
       name: p.full_name,
       role: p.user_type
@@ -962,7 +962,7 @@ export const proovDb = {
       // Fallback: search by full_name sanitized
       const { data: profiles } = await supabase.from("profiles").select("*")
       if (profiles) {
-        const found = profiles.find(p => {
+        const found = profiles.find((p: any) => {
           const san = (p.full_name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
           return san === username || p.id.startsWith(username);
         });
@@ -1026,3 +1026,157 @@ export const proovDb = {
     // Not supported in production db layer
   }
 }
+
+const MOCK_NOW = Date.now()
+
+const mockUsers: User[] = [
+  { id: "mock-admin", name: "Design Mode", role: "admin", username: "design-mode", is_premium: true, bio: "Frontend-only design account." },
+  { id: "demo-buyer-1", name: "Northstar FC", role: "buyer", username: "northstar-fc", order_count: 3 },
+  { id: "demo-mfr-1", name: "Sialkot Performance Works", role: "manufacturer", username: "sialkot-performance", is_premium: true, bio: "Teamwear and technical sportswear manufacturer.", moq: 100, established: 2014, portfolio_samples: ["/assets/tracksuit.png"] },
+]
+
+let mockDemands: Demand[] = [
+  { id: "demo-rfq-431", buyer_id: "demo-buyer-1", buyer_name: "Northstar FC", title: "Football Jersey Kit - Full Team Set", description: "Home and away sublimated kits with player names, numbers, socks, and export packaging.", category: "Sportswear", quantity: 500, fabric: "Sublimated polyester interlock", budget_range: "$7.60 - $9.20", budget_min: 7.6, turnaround_time: "21 days", target_tat: 21, status: "open", techpack_url: "/assets/baseball_jersey.png", created_at: new Date(MOCK_NOW - 2 * 86400000).toISOString(), inquiry_number: "PRV-2026-00431", expires_at: new Date(MOCK_NOW + 5 * 86400000).toISOString(), techpack_urls: [] },
+  { id: "demo-rfq-418", buyer_id: "demo-buyer-1", buyer_name: "Sport Arabia", title: "Performance Polo Uniform Program", description: "Moisture-wicking polos with embroidered chest marks.", category: "Apparel", quantity: 1200, fabric: "Birdseye performance knit", budget_range: "$9.80 - $12.00", budget_min: 9.8, turnaround_time: "28 days", target_tat: 28, status: "open", techpack_url: "/assets/polo_shirt.png", created_at: new Date(MOCK_NOW - 5 * 86400000).toISOString(), inquiry_number: "PRV-2026-00418" },
+]
+
+let mockProducts: OrderProduct[] = [
+  { id: "mock-product-home", order_id: "mock-order-1001", inquiry_id: "demo-rfq-431", name: "Home jersey", style_code: "NS-HOME-26", category: "Sportswear", primary_material: "Poly interlock", quantity: 500, unit: "pieces", target_unit_price: 7.6, bid_unit_price: 7.9, thumbnail_url: "/assets/baseball_jersey.png", quality_coverage: "full", sort_order: 0, techpack_pages: [] },
+  { id: "mock-product-away", order_id: "mock-order-1001", inquiry_id: "demo-rfq-431", name: "Away jersey", style_code: "NS-AWAY-26", category: "Sportswear", primary_material: "Poly interlock", quantity: 500, unit: "pieces", target_unit_price: 7.6, bid_unit_price: 7.9, thumbnail_url: "/assets/baseball_jersey.png", quality_coverage: "full", sort_order: 1, techpack_pages: [] },
+]
+
+let mockOrders: Order[] = [
+  { id: "mock-order-1001", demand_id: "demo-rfq-431", buyer_id: "demo-buyer-1", manufacturer_id: "demo-mfr-1", manufacturer_name: "Sialkot Performance Works", title: "Football Jersey Kit - Full Team Set", amount: 7900, status: "in_production", tracking_number: "DHL-MOCK-1049", carrier: "DHL", shipping_invoice_url: "", milestone_advance_paid: true, fabric: "Sublimated polyester interlock", quantity: 1000, turnaround_time: "22 days", description: "Full team set with home and away jerseys.", remarks: "Color proof approved. Production sample photographed.", created_at: new Date(MOCK_NOW - 86400000).toISOString(), order_number: "ORD-MOCK-1001", escrow_status: "funded", milestones: [], techpack_url: "/assets/baseball_jersey.png", order_type: "sourcing", visibility: "exchange", split_bidding: true, techpack_locked: false, products: mockProducts, incoterms: "FOB", destination: "Manchester, UK", sample_required: true },
+  { id: "mock-order-1002", demand_id: "demo-rfq-418", buyer_id: "demo-buyer-1", manufacturer_id: "demo-mfr-2", manufacturer_name: "Anatolia Apparel Co.", title: "Performance Polo Uniform Program", amount: 11760, status: "sampling", tracking_number: "", carrier: "", shipping_invoice_url: "", milestone_advance_paid: false, fabric: "Birdseye performance knit", quantity: 1200, turnaround_time: "28 days", remarks: "Waiting on fit sample approval.", created_at: new Date(MOCK_NOW - 3 * 86400000).toISOString(), order_number: "ORD-MOCK-1002", escrow_status: "pending", order_type: "sourcing", visibility: "exchange", split_bidding: false, products: [], incoterms: "CIF", destination: "Dubai, UAE", sample_required: true },
+]
+
+let mockBids: Bid[] = [
+  { id: "mock-bid-1", demand_id: "demo-rfq-431", manufacturer_id: "demo-mfr-1", manufacturer_name: "Sialkot Performance Works", bid_price: 7.9, turnaround_time: "22 days", comments: "Includes sublimation, labels, and export cartons.", status: "submitted", created_at: new Date(MOCK_NOW - 3600000).toISOString(), unit_price: 7.9, currency: "USD", tat_days: 22, message: "Includes sublimation, labels, and export cartons.", portfolio_samples: ["/assets/tracksuit.png"], product_prices: [] },
+]
+
+let mockMessages: Message[] = [
+  { id: "mock-message-1", order_id: "mock-order-1001", sender_id: "demo-buyer-1", sender_name: "Northstar FC", content: "Please keep collar rib slightly heavier than last sample.", attachment_urls: [], message_type: "human", created_at: new Date(MOCK_NOW - 7200000).toISOString() },
+  { id: "mock-message-2", order_id: "mock-order-1001", sender_id: "system", sender_name: "System event", content: "Escrow funded and milestone plan activated.", attachment_urls: [], message_type: "system", event_type: "escrow_funded", metadata: {}, created_at: new Date(MOCK_NOW - 3600000).toISOString() },
+]
+
+let mockLogs: LogEntry[] = [
+  { id: "mock-log-1", timestamp: new Date(MOCK_NOW - 3600000).toISOString(), category: "DESIGN_MODE", message: "Mock backend initialized.", action: "Mock backend initialized.", details: "DESIGN_MODE" },
+]
+
+let mockSnapshots: ProductSnapshot[] = []
+let mockLedger: EscrowLedgerEntry[] = [
+  { id: "mock-ledger-1", order_id: "mock-order-1001", entry_type: "manual_funding", amount: 7900, currency: "USD", status: "recorded", payment_rail: "manual", reference: "MOCK-ESCROW-001", notes: "Design-mode escrow funding.", created_at: new Date(MOCK_NOW - 3600000).toISOString() },
+]
+let mockMilestones: OrderMilestone[] = [
+  { id: "mock-ms-1", order_id: "mock-order-1001", milestone_number: 1, title: "Sample approval", description: "Fit and color sample approved.", percentage: 30, amount: 2370, status: "completed", proof_urls: [], due_date: new Date(MOCK_NOW + 2 * 86400000).toISOString(), completed_at: new Date(MOCK_NOW - 1800000).toISOString(), created_at: new Date(MOCK_NOW - 86400000).toISOString() },
+  { id: "mock-ms-2", order_id: "mock-order-1001", milestone_number: 2, title: "Bulk production", description: "Main production run.", percentage: 50, amount: 3950, status: "active", proof_urls: [], due_date: new Date(MOCK_NOW + 10 * 86400000).toISOString(), created_at: new Date(MOCK_NOW - 86400000).toISOString() },
+]
+let mockEvents: MilestoneEvent[] = [
+  { id: "mock-event-1", order_id: "mock-order-1001", milestone_id: "mock-ms-1", actor_id: "demo-mfr-1", event_type: "proof_uploaded", proof_urls: [], notes: "Sample photos added.", created_at: new Date(MOCK_NOW - 1800000).toISOString() },
+]
+
+function emitMockUpdate(eventName: string) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(eventName))
+}
+
+Object.assign(proovDb, {
+  getLogs: async () => mockLogs,
+  logDebug: async (category: string, message: string) => {
+    const entry = { id: `log_${Date.now()}`, timestamp: new Date().toISOString(), category, message, action: message, details: category }
+    mockLogs = [entry, ...mockLogs]
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("proov_log", { detail: entry }))
+  },
+  getUser: async (userId: string) => mockUsers.find((user) => user.id === userId) || mockUsers[0] || null,
+  getUserByUsername: async (username: string) => mockUsers.find((user) => user.username === username || user.id === username) || mockUsers[0] || null,
+  getDemands: async () => mockDemands,
+  saveDemand: async (demand: Demand) => {
+    const saved = { ...demand, id: demand.id || `mock-rfq-${Date.now()}`, created_at: demand.created_at || new Date().toISOString(), buyer_id: demand.buyer_id || "mock-admin", buyer_name: demand.buyer_name || "Design Mode" }
+    mockDemands = [saved, ...mockDemands.filter((item) => item.id !== saved.id)]
+    await proovDb.logDebug("DEMAND", `Saved mock demand: ${saved.title}`)
+  },
+  updateDemandStatus: async (demandId: string, status: string) => {
+    mockDemands = mockDemands.map((demand) => demand.id === demandId ? { ...demand, status } : demand)
+    await proovDb.logDebug("DEMAND", `Updated mock demand ${demandId} to ${status}`)
+  },
+  getBidsForDemand: async (demandId: string) => mockBids.filter((bid) => bid.demand_id === demandId),
+  getBidsByManufacturer: async (manufacturerId: string) => mockBids.filter((bid) => bid.manufacturer_id === manufacturerId),
+  saveBid: async (bid: Bid) => {
+    const saved = { ...bid, id: bid.id || `mock-bid-${Date.now()}`, created_at: bid.created_at || new Date().toISOString(), status: bid.status || "submitted" }
+    mockBids = [saved, ...mockBids.filter((item) => item.id !== saved.id)]
+  },
+  acceptBid: async (bidId: string) => {
+    mockBids = mockBids.map((bid) => bid.id === bidId ? { ...bid, status: "accepted" } : bid)
+  },
+  getOrders: async () => mockOrders,
+  getOrder: async (orderId: string) => mockOrders.find((order) => order.id === orderId) || mockOrders[0] || null,
+  saveOrder: async (order: Order) => {
+    mockOrders = mockOrders.map((item) => item.id === order.id ? order : item)
+    if (!mockOrders.find((item) => item.id === order.id)) mockOrders = [order, ...mockOrders]
+    emitMockUpdate("proov_order_updated")
+  },
+  updateOrderStatus: async (orderId: string, status: string, trackingNumber?: string) => {
+    mockOrders = mockOrders.map((order) => order.id === orderId ? { ...order, status, tracking_number: trackingNumber || order.tracking_number } : order)
+    emitMockUpdate("proov_order_updated")
+  },
+  updateOrderRemarks: async (orderId: string, remarks: string, status?: string) => {
+    mockOrders = mockOrders.map((order) => order.id === orderId ? { ...order, remarks, status: status || order.status } : order)
+    emitMockUpdate("proov_order_updated")
+  },
+  updateOrder: async (orderId: string, updates: Partial<Order>) => {
+    mockOrders = mockOrders.map((order) => order.id === orderId ? { ...order, ...updates } : order)
+    emitMockUpdate("proov_order_updated")
+  },
+  getOrderProducts: async (orderId: string) => mockProducts.filter((product) => product.order_id === orderId),
+  getProductSnapshots: async () => mockSnapshots,
+  saveProductSnapshot: async (snapshot: Partial<ProductSnapshot>) => {
+    const saved = { id: snapshot.id || `mock-product-${Date.now()}`, owner_id: snapshot.owner_id || "mock-admin", name: snapshot.name || "Untitled product", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...snapshot } as ProductSnapshot
+    mockSnapshots = [saved, ...mockSnapshots.filter((item) => item.id !== saved.id)]
+    return saved
+  },
+  publishOrderCanvas: async (input: OrderCanvasPublishInput) => {
+    const inquiryId = `mock-rfq-${Date.now()}`
+    const orderId = input.role === "selling" ? `mock-order-${Date.now()}` : undefined
+    const totalQuantity = input.products.reduce((sum, product) => sum + (product.quantity || 0), 0)
+    const orderTotal = input.products.reduce((sum, product) => sum + ((product.target_unit_price || 0) * (product.quantity || 0)), 0)
+    mockDemands = [{ id: inquiryId, buyer_id: "mock-admin", buyer_name: "Design Mode", title: input.orderName, description: `${input.products.length} product mock order.`, category: input.products[0]?.category || "Sportswear", quantity: totalQuantity, fabric: input.products[0]?.primary_material || "", budget_range: `$${orderTotal.toLocaleString()}`, budget_min: orderTotal, turnaround_time: `${input.logistics.tatDays || 0} days`, target_tat: input.logistics.tatDays, status: input.saveAsDraft ? "draft" : "open", techpack_url: input.products[0]?.thumbnail_url || "", created_at: new Date().toISOString(), inquiry_number: `PRV-MOCK-${mockDemands.length + 1}` }, ...mockDemands]
+    if (orderId) {
+      const products = input.products.map((product, index) => ({ ...product, id: product.id || `mock-line-${Date.now()}-${index}`, order_id: orderId, inquiry_id: inquiryId, sort_order: index }))
+      mockProducts = [...products, ...mockProducts]
+      mockOrders = [{ id: orderId, demand_id: inquiryId, buyer_id: "mock-admin", manufacturer_id: "mock-admin", manufacturer_name: "Design Mode Manufacturing", title: input.orderName, amount: orderTotal, status: "confirmed", tracking_number: "", shipping_invoice_url: "", milestone_advance_paid: false, quantity: totalQuantity, created_at: new Date().toISOString(), order_number: `ORD-MOCK-${mockOrders.length + 1}`, escrow_status: "pending", order_type: input.role, visibility: input.visibility === "market" ? "exchange" : "private", split_bidding: input.splitBidding, techpack_locked: false, shared_with: input.invitedManufacturerIds || [], products }, ...mockOrders]
+    }
+    return { inquiryId, orderId }
+  },
+  createBid: async (bid: { demand_id: string; manufacturer_id: string; price: number; tat_days: number; comments?: string; status?: string }) => {
+    mockBids = [{ id: `mock-bid-${Date.now()}`, demand_id: bid.demand_id, manufacturer_id: bid.manufacturer_id, manufacturer_name: "Design Mode Manufacturing", bid_price: bid.price, turnaround_time: `${bid.tat_days} days`, comments: bid.comments || "", status: bid.status || "submitted", created_at: new Date().toISOString(), unit_price: bid.price, tat_days: bid.tat_days, message: bid.comments || "" }, ...mockBids]
+  },
+  getTransactionsForOrder: async () => [],
+  getEscrowLedgerEntries: async (orderId: string) => mockLedger.filter((entry) => entry.order_id === orderId),
+  getOrderMilestones: async (orderId: string) => mockMilestones.filter((milestone) => milestone.order_id === orderId),
+  getMilestoneEvents: async (orderId: string) => mockEvents.filter((event) => event.order_id === orderId),
+  saveTransaction: async (tx: Transaction) => { await proovDb.logDebug("TX", `Recorded mock transaction ${tx.type}: ${tx.amount} ${tx.currency}`) },
+  getMessages: async (orderId: string) => mockMessages.filter((message) => message.order_id === orderId),
+  saveMessage: async (msg: Message) => { mockMessages = [{ ...msg, id: msg.id || `mock-message-${Date.now()}`, created_at: msg.created_at || new Date().toISOString() }, ...mockMessages] },
+  createOrder: async (draft: Partial<Order>) => {
+    const order = { id: `mock-order-${Date.now()}`, demand_id: draft.demand_id || "mock-rfq", buyer_id: draft.buyer_id || "mock-admin", manufacturer_id: draft.manufacturer_id || "demo-mfr-1", manufacturer_name: draft.manufacturer_name || "Sialkot Performance Works", title: draft.title || "Mock order", amount: draft.amount || 0, status: draft.status || "confirmed", tracking_number: "", shipping_invoice_url: "", milestone_advance_paid: false, created_at: new Date().toISOString(), ...draft } as Order
+    mockOrders = [order, ...mockOrders]
+    return order
+  },
+  getOrderWithProducts: async (orderId: string) => {
+    const order = mockOrders.find((item) => item.id === orderId) || mockOrders[0]
+    return order ? { ...order, products: mockProducts.filter((product) => product.order_id === order.id) } : null
+  },
+  saveOrderProduct: async (p: Partial<OrderProduct>) => {
+    const product = { id: p.id || `mock-product-${Date.now()}`, order_id: p.order_id || "mock-order-1001", name: p.name || "Mock product", quantity: p.quantity || 1, ...p } as OrderProduct
+    mockProducts = [product, ...mockProducts.filter((item) => item.id !== product.id)]
+    return product
+  },
+  saveTechpackPage: async () => undefined,
+  lockTechpack: async (orderId: string) => { mockOrders = mockOrders.map((order) => order.id === orderId ? { ...order, techpack_locked: true } : order) },
+  saveInspiration: async () => undefined,
+  searchManufacturers: async (query: string) => mockUsers.filter((user) => user.role === "manufacturer" && user.name.toLowerCase().includes(query.toLowerCase())),
+  inviteManufacturers: async () => undefined,
+  getSavedAddresses: async () => [{ id: "mock-address-1", user_id: "mock-admin", label: "Design office", address: "123 Sample Street", city: "Lahore", country: "Pakistan", is_default: true }],
+  getOrderByUsernameAndId: async (_username: string, orderId: string) => mockOrders.find((order) => order.id === orderId) || mockOrders[0] || null,
+  updateUsername: async () => ({ success: true }),
+  reset: async () => undefined,
+})

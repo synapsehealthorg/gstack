@@ -43,7 +43,7 @@ export default function LogsPage() {
       .order("created_at", { ascending: false })
       .limit(500);
     if (loadError) setError(`Audit events could not load. ${loadError.message}`);
-    else setEvents((data || []).map((row) => {
+    else setEvents((data || []).map((row: any) => {
       const admin = Array.isArray(row.admin) ? row.admin[0] : row.admin;
       return {
         id: String(row.id),
